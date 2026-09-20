@@ -12,18 +12,12 @@ Everything below is a one-time setup. Ping the group chat if anything fails.
 
 1. Install the tools
 
-Check what you already have:
-
 git --version
 conda --version
 code --version
 
 Install what's missing:
 
-Git — https://git-scm.com/download/win (keep the default PATH option)
-Miniconda or Anaconda — https://www.anaconda.com/download
-VS Code — https://code.visualstudio.com/
-VS Code extensions: Python, Jupyter, Black Formatter (all by Microsoft)
 2. Configure git
 
 Once per machine:
@@ -38,7 +32,7 @@ Use the email tied to your GitHub account, otherwise your commits won't be linke
 Side by side, never one inside the other:
 
 cd C:\Users\YOU\Documents
-git clone https://github.com/epfml/ML_course.git
+git clone https://github.com/epfml/ML_course.git  
 git clone https://github.com/EdouardFsn/AdamSebEd.git
 
 The course repo is needed for the grading tests.
@@ -57,13 +51,10 @@ Sanity check: git status should show no .csv files.
 
 5. Create the grading environment
 
-The graders run our code on Python 3.9 / NumPy 1.23.1. Build the same environment:
 
-cd C:\Users\YOU\Documents\ML_course\projects\project1\grading_tests
+cd C:\Users\YOURNAME\ML_course\projects\project1\grading_tests   (or your own personal path to the ML_course on your own machine)
 conda env create --file=environment.yml --name=project1-grading
 conda activate project1-grading
-
-If conda activate fails in PowerShell: open Anaconda Prompt, run conda init powershell, then back in PowerShell run Set-ExecutionPolicy -Scope CurrentUser RemoteSigned and restart VS Code.
 
 In VS Code: open the AdamSebEd folder, then Ctrl+Shift+P → Python: Select Interpreter → pick project1-grading.
 
@@ -73,7 +64,6 @@ That environment ships scikit-learn and pandas for running the tests only. We ar
 
 Ctrl+Shift+P → Preferences: Open User Settings (JSON), then add this block before the closing brace (mind the comma on the line above):
 
-jsonc
 "[python]": {
     "editor.defaultFormatter": "ms-python.black-formatter",
     "editor.formatOnSave": true
@@ -82,23 +72,26 @@ jsonc
 Please do this. It only pays off if all three of us do — otherwise git flags conflicts on lines nobody actually changed.
 
 Running the tests
-cd C:\Users\YOU\Documents\ML_course\projects\project1\grading_tests
+cd C:\Users\YOURNAME\ML_course\projects\project1\grading_tests    
 conda activate project1-grading
-pytest --github_link C:\Users\YOU\Documents\AdamSebEd .
+pytest --github_link C:\Users\YOURNAME\Documents\AdamSebEd .
 
 To target a single function:
 
-pytest --github_link C:\Users\YOU\Documents\AdamSebEd . -k least_squares
+pytest --github_link C:\Users\YOURNAME\Documents\AdamSebEd . -k least_squares
 
 Two failures are expected and harmless during development:
 
 value tests failing with NotImplementedError — that function isn't written yet
 test_github_link_format — we pass a local path instead of a URL
 
-The tests may be updated by the TAs, so pull the course repo now and then:
+The tests may be updated by the TAs, so pull the course repo now and then (we will also get the helpers.py later i think):
 
-cd C:\Users\YOU\Documents\ML_course
+cd C:\Users\YOURNAME\ML_course  (or still your own path)
 git pull
+
+
+
 Daily workflow
 
 Start of session:
@@ -113,12 +106,6 @@ git push
 
 Commit messages in English, imperative mood, short.
 
-For anything larger than a small fix, use a branch and open a pull request:
-
-git checkout -b feature/logistic-regression
-git push -u origin feature/logistic-regression
-
-Notebooks: shared code lives in .py files. Notebooks are for exploration and each of us keeps their own (explo_adam.ipynb, etc.) — .ipynb files are JSON and merge terribly.
 
 Repo structure
 AdamSebEd/
@@ -143,7 +130,7 @@ ridge_regression	(y, tx, lambda_)
 logistic_regression	(y, tx, initial_w, max_iters, gamma)
 reg_logistic_regression	(y, tx, lambda_, initial_w, max_iters, gamma)
 
-Note the unusual order on the last one: lambda_ comes before initial_w.
+
 
 Conventions enforced by the tests:
 
