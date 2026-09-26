@@ -17,7 +17,12 @@ def mean_squared_error_gd(y, tx, initial_w, max_iters, gamma):
         w: numpy array of shape (D,), the final weights.
         loss: float, the MSE loss corresponding to w.
     """
-    raise NotImplementedError
+    w = initial_w
+    for _ in range(max_iters):
+        gradient = compute_mse_gradient(y, tx, w)
+        w = w - gamma * gradient
+    loss = compute_mse(y, tx, w)
+    return w, loss
 
 
 def mean_squared_error_sgd(y, tx, initial_w, max_iters, gamma):
