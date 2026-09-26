@@ -99,3 +99,38 @@ def reg_logistic_regression(y, tx, lambda_, initial_w, max_iters, gamma):
         loss: float, the negative log likelihood without the penalty term.
     """
     raise NotImplementedError
+
+
+# Helper functions
+
+
+def compute_mse(y, tx, w):
+    """Compute the mean squared error loss.
+
+    Args:
+        y: numpy array of shape (N,), the labels.
+        tx: numpy array of shape (N, D), the features.
+        w: numpy array of shape (D,), the weights.
+
+    Returns:
+        loss: float, the MSE loss.
+    """
+    e = y - tx.dot(w)
+    loss = np.mean(e**2) / 2
+    return loss
+
+
+def compute_mse_gradient(y, tx, w):
+    """Compute the gradient of the mean squared error loss.
+
+    Args:
+        y: numpy array of shape (N,), the labels.
+        tx: numpy array of shape (N, D), the features.
+        w: numpy array of shape (D,), the weights.
+
+    Returns:
+        gradient: numpy array of shape (D,), the gradient of the MSE loss.
+    """
+    e = y - tx.dot(w)
+    gradient = -tx.T.dot(e) / len(y)
+    return gradient
