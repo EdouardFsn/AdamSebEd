@@ -53,7 +53,11 @@ def least_squares(y, tx):
         w: numpy array of shape (D,), the optimal weights.
         loss: float, the MSE loss corresponding to w.
     """
-    raise NotImplementedError
+    a = tx.T.dot(tx)
+    b = tx.T.dot(y)
+    w = np.linalg.solve(a, b)
+    loss = compute_mse(y, tx, w)
+    return w, loss
 
 
 def ridge_regression(y, tx, lambda_):
@@ -68,7 +72,12 @@ def ridge_regression(y, tx, lambda_):
         w: numpy array of shape (D,), the optimal weights.
         loss: float, the MSE loss without the penalty term.
     """
-    raise NotImplementedError
+    n, d = tx.shape
+    a = tx.T.dot(tx) + 2 * n * lambda_ * np.eye(d)
+    b = tx.T.dot(y)
+    w = np.linalg.solve(a, b)
+    loss = compute_mse(y, tx, w)
+    return w, loss
 
 
 def logistic_regression(y, tx, initial_w, max_iters, gamma):
