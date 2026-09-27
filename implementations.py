@@ -17,7 +17,12 @@ def mean_squared_error_gd(y, tx, initial_w, max_iters, gamma):
         w: numpy array of shape (D,), the final weights.
         loss: float, the MSE loss corresponding to w.
     """
-    raise NotImplementedError
+    w = initial_w
+    for _ in range(max_iters):
+        gradient = compute_mse_gradient(y, tx, w)
+        w = w - gamma * gradient
+    loss = compute_mse(y, tx, w)
+    return w, loss
 
 
 def mean_squared_error_sgd(y, tx, initial_w, max_iters, gamma):
@@ -99,3 +104,38 @@ def reg_logistic_regression(y, tx, lambda_, initial_w, max_iters, gamma):
         loss: float, the negative log likelihood without the penalty term.
     """
     raise NotImplementedError
+
+
+# Helper functions
+
+
+def compute_mse(y, tx, w):
+    """Compute the mean squared error loss.
+
+    Args:
+        y: numpy array of shape (N,), the labels.
+        tx: numpy array of shape (N, D), the features.
+        w: numpy array of shape (D,), the weights.
+
+    Returns:
+        loss: float, the MSE loss.
+    """
+    e = y - tx.dot(w)
+    loss = np.mean(e**2) / 2
+    return loss
+
+
+def compute_mse_gradient(y, tx, w):
+    """Compute the gradient of the mean squared error loss.
+
+    Args:
+        y: numpy array of shape (N,), the labels.
+        tx: numpy array of shape (N, D), the features.
+        w: numpy array of shape (D,), the weights.
+
+    Returns:
+        gradient: numpy array of shape (D,), the gradient of the MSE loss.
+    """
+    e = y - tx.dot(w)
+    gradient = -tx.T.dot(e) / len(y)
+    return gradient
