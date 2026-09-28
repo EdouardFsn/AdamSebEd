@@ -39,7 +39,13 @@ def mean_squared_error_sgd(y, tx, initial_w, max_iters, gamma):
         w: numpy array of shape (D,), the final weights.
         loss: float, the MSE loss corresponding to w.
     """
-    raise NotImplementedError
+    w = initial_w
+    for _ in range(max_iters):
+        i = np.random.randint(len(y))
+        gradient = compute_mse_gradient(y[i : i + 1], tx[i : i + 1], w)
+        w = w - gamma * gradient
+    loss = compute_mse(y, tx, w)
+    return w, loss
 
 
 def least_squares(y, tx):
@@ -94,7 +100,12 @@ def logistic_regression(y, tx, initial_w, max_iters, gamma):
         w: numpy array of shape (D,), the final weights.
         loss: float, the negative log likelihood corresponding to w.
     """
-    raise NotImplementedError
+    w = initial_w
+    for _ in range(max_iters):
+        gradient = compute_logistic_gradient(y, tx, w)
+        w = w - gamma * gradient
+    loss = compute_logistic_loss(y, tx, w)
+    return w, loss
 
 
 def reg_logistic_regression(y, tx, lambda_, initial_w, max_iters, gamma):
