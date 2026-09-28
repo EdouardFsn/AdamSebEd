@@ -112,7 +112,12 @@ def reg_logistic_regression(y, tx, lambda_, initial_w, max_iters, gamma):
         w: numpy array of shape (D,), the final weights.
         loss: float, the negative log likelihood without the penalty term.
     """
-    raise NotImplementedError
+    w = initial_w
+    for _ in range(max_iters):
+        gradient = compute_logistic_gradient(y, tx, w) + 2 * lambda_ * w
+        w = w - gamma * gradient
+    loss = compute_logistic_loss(y, tx, w)
+    return w, loss
 
 
 # Helper functions
