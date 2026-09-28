@@ -112,7 +112,12 @@ def reg_logistic_regression(y, tx, lambda_, initial_w, max_iters, gamma):
         w: numpy array of shape (D,), the final weights.
         loss: float, the negative log likelihood without the penalty term.
     """
-    raise NotImplementedError
+    w = initial_w
+    for _ in range(max_iters):
+        gradient = compute_logistic_gradient(y, tx, w) + 2 * lambda_ * w
+        w = w - gamma * gradient
+    loss = compute_logistic_loss(y, tx, w)
+    return w, loss
 
 
 # Helper functions
@@ -147,4 +152,48 @@ def compute_mse_gradient(y, tx, w):
     """
     e = y - tx.dot(w)
     gradient = -tx.T.dot(e) / len(y)
+    return gradient
+
+
+def sigmoid(t):
+    """Apply the sigmoid function on t.
+
+    Args:
+        t: A scalar or numpy array.
+
+    Returns:
+        The sigmoid of t.
+    """
+    return 1 / (1 + np.exp(-t))
+
+
+def compute_logistic_loss(y, tx, w):
+    """Compute the negative log likelihood loss for logistic regression.
+
+    Args:
+        y: numpy array of shape (N,), the labels in {0, 1}.
+        tx: numpy array of shape (N, D), the features.
+        w: numpy array of shape (D,), the weights.
+
+    Returns:
+        loss: float, the negative log likelihood loss.
+    """
+    pred = sigmoid(tx.dot(w))
+    loss = -np.mean(y * np.log(pred) + (1 - y) * np.log(1 - pred))
+    return loss
+
+
+def compute_logistic_gradient(y, tx, w):
+    """Compute the gradient of the negative log likelihood loss for logistic regression.
+
+    Args:
+        y: numpy array of shape (N,), the labels in {0, 1}.
+        tx: numpy array of shape (N, D), the features.
+        w: numpy array of shape (D,), the weights.
+
+    Returns:
+        gradient: numpy array of shape (D,), the gradient of the negative log likelihood loss.
+    """
+    pred = sigmoid(tx.dot(w))
+    gradient = tx.T.dot(pred - y) / len(y)
     return gradient
