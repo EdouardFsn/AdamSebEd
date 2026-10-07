@@ -2,6 +2,22 @@
 
 import numpy as np
 
+# Columns that carry no health signal: survey metadata, dates, IDs, phone bookkeeping...
+METADATA_FEATURES = [
+    "_STATE",
+    "FMONTH",
+    "IDATE",
+    "IMONTH",
+    "IDAY",
+    "IYEAR",
+]
+
+
+def drop_named(x, names, to_drop=METADATA_FEATURES):
+    """Drop columns whose name is in `to_drop`. Returns reduced x, names, and the mask."""
+    keep = np.array([n not in to_drop for n in names])
+    return x[:, keep], [n for n, k in zip(names, keep) if k], keep
+
 
 def drop_high_missing(x, names, max_missing=0.8):
     """Keep only columns whose missing fraction is <= max_missing.
