@@ -286,6 +286,24 @@ def drop_named(x, names, to_drop=METADATA_FEATURES):
     return x[:, keep], [n for n, k in zip(names, keep) if k], keep
 
 
+def apply_missing_map(x, names, missing_map=MISSING_VALUES):
+    """Replace each column's sentinel codes (per missing_map) with nan.
+
+    Args:
+        x: numpy array of shape (N, D), the features.
+        names: list of D feature names, aligned with the columns of x.
+        missing_map: dict {feature_name: [sentinel values]}.
+
+    Returns:
+        out: numpy array of shape (N, D), with sentinels replaced by nan.
+    """
+    out = x.copy()
+    for j, name in enumerate(names):
+        if name in missing_map:
+            out[np.isin(out[:, j], missing_map[name]), j] = np.nan
+    return out
+
+
 def drop_high_missing(x, names, max_missing=0.8):
     """Keep only columns whose missing fraction is <= max_missing.
 
