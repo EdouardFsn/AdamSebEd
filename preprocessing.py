@@ -183,6 +183,24 @@ def apply_missing_map(x, names, missing_map=MISSING_VALUES):
     return out
 
 
+def apply_none_map(x, names, none_map=NONE_VALUES):
+    """Replace each column's "none / zero" codes (per none_map) with 0.
+
+    Args:
+        x: numpy array of shape (N, D), the features.
+        names: list of D feature names, aligned with the columns of x.
+        none_map: dict {feature_name: [codes that mean zero]}.
+
+    Returns:
+        out: numpy array of shape (N, D), with "none" codes replaced by 0.
+    """
+    out = x.copy()
+    for j, name in enumerate(names):
+        if name in none_map:
+            out[np.isin(out[:, j], none_map[name]), j] = 0
+    return out
+
+
 def drop_high_missing(x, names, max_missing=0.8):
     """Keep only columns whose missing fraction is <= max_missing.
 
