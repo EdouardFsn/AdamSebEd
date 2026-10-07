@@ -19,3 +19,73 @@ def drop_high_missing(x, names, max_missing=0.8):
     missing_frac = np.isnan(x).mean(axis=0)
     keep = missing_frac <= max_missing
     return x[:, keep], [n for n, k in zip(names, keep) if k], keep
+
+
+def fit_impute(x):
+    """Compute the per-column median, ignoring missing values.
+
+    Args:
+        x: numpy array of shape (N, D), the features.
+
+    Returns:
+        medians: numpy array of shape (D,), the per-column medians.
+    """
+    return np.nanmedian(x, axis=0)
+
+
+def apply_impute(x, medians):
+    """Replace missing values by the provided per-column medians.
+
+    Args:
+        x: numpy array of shape (N, D), the features.
+        medians: numpy array of shape (D,), the per-column medians.
+
+    Returns:
+        out: numpy array of shape (N, D), with no missing values.
+    """
+    out = x.copy()
+    rows, cols = np.where(np.isnan(out))
+    out[rows, cols] = np.take(medians, cols)
+    return out
+
+
+def fit_standardize(x):
+    """Compute the per-column mean and std (std of 0 is replaced by 1).
+
+    Args:
+        x: numpy array of shape (N, D), the features.
+
+    Returns:
+        mean: numpy array of shape (D,), the per-column means.
+        std: numpy array of shape (D,), the per-column stds (zeros -> 1).
+    """
+    mean = x.mean(axis=0)
+    std = x.std(axis=0)
+    std[std == 0] = 1.0
+    return mean, std
+
+
+def apply_standardize(x, mean, std):
+    """Standardize using the provided per-column mean and std.
+
+    Args:
+        x: numpy array of shape (N, D), the features.
+        mean: numpy array of shape (D,), the per-column means.
+        std: numpy array of shape (D,), the per-column stds.
+
+    Returns:
+        numpy array of shape (N, D), standardized.
+    """
+    return (x - mean) / std
+
+
+def add_bias(x):
+    """Prepend a column of ones for the bias/intercept term.
+
+    Args:
+        x: numpy array of shape (N, D), the features.
+
+    Returns:
+        numpy array of shape (N, D + 1), with a leading column of ones.
+    """
+    return np.c_[np.ones(x.shape[0]), x]
