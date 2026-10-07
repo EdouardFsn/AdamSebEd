@@ -4,13 +4,280 @@ import numpy as np
 
 # Columns that carry no health signal: survey metadata, dates, IDs, phone bookkeeping...
 METADATA_FEATURES = [
-    "_STATE",
-    "FMONTH",
+    # Survey administration / telephone screening
     "IDATE",
-    "IMONTH",
     "IDAY",
-    "IYEAR",
+    "DISPCODE",
+    "SEQNO",
+    "_PSU",
+    "CTELENUM",
+    "PVTRESD1",
+    "COLGHOUS",
+    "STATERES",
+    "CELLFON3",
+    "LADULT",
+    "CTELNUM1",
+    "CELLFON2",
+    "CADULT",
+    "PVTRESD2",
+    "CSTATE",
+    # Questionnaire / language administration
+    "QSTVER",
+    "QSTLANG",
+    # Free-text administrative fields
+    "EXACTOT1",
+    "EXACTOT2",
+    # Survey weighting / sampling machinery
+    "_STSTR",
+    "_STRWT",
+    "_RAWRAKE",
+    "_WT2RAKE",
+    "_DUALCOR",
+    "_LLCPWT",
+    "_CLLCPWT",
+    # Purely administrative / derived sampling variables
+    "MSCODE",
 ]
+
+MISSING_VALUES = {
+    # General categorical questions
+    # 7 = Don't know / Not sure
+    # 9 = Refused
+    "MARITAL": [9],
+    "EDUCA": [9],
+    "EMPLOY1": [9],
+    "GENHLTH": [7, 9],
+    "HLTHPLN1": [7, 9],
+    "PERSDOC2": [7, 9],
+    "MEDCOST": [7, 9],
+    "CHECKUP1": [7, 9],
+    "BPHIGH4": [7, 9],
+    "BPMEDS": [7, 9],
+    "BLOODCHO": [7, 9],
+    "CHOLCHK": [7, 9],
+    "TOLDHI2": [7, 9],
+    "CVDINFR4": [7, 9],
+    "CVDCRHD4": [7, 9],
+    "CVDSTRK3": [7, 9],
+    "ASTHMA3": [7, 9],
+    "ASTHNOW": [7, 9],
+    "CHCSCNCR": [7, 9],
+    "CHCOCNCR": [7, 9],
+    "CHCCOPD1": [7, 9],
+    "HAVARTH3": [7, 9],
+    "ADDEPEV2": [7, 9],
+    "CHCKIDNY": [7, 9],
+    "DIABETE3": [7, 9],
+    "SMOKE100": [7, 9],
+    "SMOKDAY2": [7, 9],
+    "STOPSMK2": [7, 9],
+    "USENOW3": [7, 9],
+    "EXERANY2": [7, 9],
+    "FLUSHOT6": [7, 9],
+    "PNEUVAC3": [7, 9],
+    "HIVTST6": [7, 9],
+    "CAREGIV1": [7, 9],
+    "SXORIENT": [7, 9],
+    "TRNSGNDR": [7, 9],
+    "CASTHDX2": [7, 9],
+    "CASTHNO2": [7, 9],
+    "EMTSUPRT": [7, 9],
+    "LSATISFY": [7, 9],
+    "MISTMNT": [7, 9],
+    "ADANXEV": [7, 9],
+    # Numeric quantities where 77/99 are sentinel values
+    "PHYSHLTH": [77, 99],
+    "MENTHLTH": [77, 99],
+    "POORHLTH": [77, 99],
+    "LASTSMK2": [77, 99],
+    # Frequency variables
+    "AVEDRNK2": [77, 99],
+    "DRNK3GE5": [77, 99],
+    "MAXDRNKS": [77, 99],
+    "FRUITJU1": [777, 999],
+    "FRUIT1": [777, 999],
+    "FVBEANS": [777, 999],
+    "FVGREEN": [777, 999],
+    "FVORANG": [777, 999],
+    "VEGETAB1": [777, 999],
+    # Physical activity calculated quantities
+    "PAFREQ1_": [99000],
+    "PAFREQ2_": [99000],
+    "MAXVO2_": [99900],
+    "FC60_": [99900],
+}
+
+SPECIAL_VALUES = {
+    # ---------------------------------------------------------
+    # "None" / zero rather than missing
+    # ---------------------------------------------------------
+    "ADPLEASR": {88: "None / 0 days"},
+    "ADDOWN": {88: "None / 0 days"},
+    "ADSLEEP": {88: "None / 0 days"},
+    "ADENERGY": {88: "None / 0 days"},
+    "ADEAT1": {88: "None / 0 days"},
+    "ADFAIL": {88: "None / 0 days"},
+    "ADTHINK": {88: "None / 0 days"},
+    "ADMOVE": {88: "None / 0 days"},
+    # ---------------------------------------------------------
+    # Alcohol
+    # ---------------------------------------------------------
+    "ALCDAY5": {
+        888: "None / did not drink alcohol in past 30 days",
+        777: "Don't know / Not sure",
+        999: "Refused",
+    },
+    "DRNKANY5": {2: "No alcohol in past 30 days"},
+    "DROCDY3_": {
+        0: "No drink occasions per day",
+        900: "Don't know / Refused / Missing",
+    },
+    "_DRNKWEK": {
+        0: "Did not drink",
+        99900: "Don't know / Not sure / Refused / Missing",
+    },
+    # ---------------------------------------------------------
+    # Household children
+    # ---------------------------------------------------------
+    "CHILDREN": {88: "No children", 99: "Don't know / Not sure / Missing"},
+    "_CHLDCNT": {1: "No children in household", 9: "Don't know / Not sure / Missing"},
+    # ---------------------------------------------------------
+    # Smoking
+    # ---------------------------------------------------------
+    "_SMOKER3": {
+        1: "Current smoker - every day",
+        2: "Current smoker - some days",
+        3: "Former smoker",
+        4: "Never smoked",
+        9: "Don't know / Refused / Missing",
+    },
+    # ---------------------------------------------------------
+    # Physical activity
+    # ---------------------------------------------------------
+    "METVL11_": {0: "Activity MET value = 0"},
+    "METVL21_": {0: "Activity MET value = 0"},
+    "ACTIN11_": {
+        0: "Not moderate/vigorous or no activity",
+        1: "Moderate",
+        2: "Vigorous",
+    },
+    "ACTIN21_": {
+        0: "Not moderate/vigorous or no activity",
+        1: "Moderate",
+        2: "Vigorous",
+    },
+    "_PACAT1": {
+        1: "Highly active",
+        2: "Active",
+        3: "Insufficiently active",
+        4: "Inactive",
+        9: "Don't know / Not sure / Refused / Missing",
+    },
+    "_PAINDX1": {
+        1: "Meet aerobic recommendations",
+        2: "Did not meet aerobic recommendations",
+        9: "Don't know / Not sure / Refused / Missing",
+    },
+    # ---------------------------------------------------------
+    # Derived health variables
+    # ---------------------------------------------------------
+    "_RFHLTH": {
+        1: "Good or better health",
+        2: "Fair or poor health",
+        9: "Don't know / Not sure / Refused / Missing",
+    },
+    "_RFHYPE5": {
+        1: "No high blood pressure",
+        2: "Yes, high blood pressure",
+        9: "Don't know / Not sure / Refused / Missing",
+    },
+    "_MICHD": {1: "Reported MI or CHD", 2: "Did not report MI or CHD"},
+    "_LTASTH1": {
+        1: "No lifetime asthma",
+        2: "Yes, lifetime asthma",
+        9: "Don't know / Not sure / Refused / Missing",
+    },
+    "_CASTHM1": {
+        1: "No current asthma",
+        2: "Current asthma",
+        9: "Don't know / Not sure / Refused / Missing",
+    },
+    "_ASTHMS1": {
+        1: "Current asthma",
+        2: "Former asthma",
+        3: "Never asthma",
+        9: "Don't know / Not sure / Refused / Missing",
+    },
+    "_DRDXAR1": {
+        1: "Diagnosed with arthritis",
+        2: "Not diagnosed with arthritis",
+    },
+    # ---------------------------------------------------------
+    # Calculated age
+    # ---------------------------------------------------------
+    "_AGEG5YR": {
+        1: "18-24",
+        2: "25-29",
+        3: "30-34",
+        4: "35-39",
+        5: "40-44",
+        6: "45-49",
+        7: "50-54",
+        8: "55-59",
+        9: "60-64",
+        10: "65-69",
+        11: "70-74",
+        12: "75-79",
+        13: "80+",
+        14: "Don't know / Refused / Missing",
+    },
+    # ---------------------------------------------------------
+    # BMI
+    # ---------------------------------------------------------
+    "_BMI5CAT": {1: "Underweight", 2: "Normal weight", 3: "Overweight", 4: "Obese"},
+    "_RFBMI5": {
+        1: "Not overweight/obese",
+        2: "Overweight or obese",
+        9: "Don't know / Refused / Missing",
+    },
+    # ---------------------------------------------------------
+    # Seat belt
+    # ---------------------------------------------------------
+    "_RFSEAT2": {
+        1: "Always or almost always",
+        2: "Sometimes, seldom, or never",
+        9: "Don't know / Not sure / Refused / Missing",
+    },
+    "_RFSEAT3": {
+        1: "Always",
+        2: "Doesn't always wear seat belt",
+        9: "Don't know / Not sure / Refused / Missing",
+    },
+    # ---------------------------------------------------------
+    # Vaccination calculated variables
+    # ---------------------------------------------------------
+    "_FLSHOT6": {
+        1: "Yes",
+        2: "No",
+        9: "Don't know / Not sure / Refused / Missing",
+        "BLANK": "Age < 65",
+    },
+    "_PNEUMO2": {
+        1: "Yes",
+        2: "No",
+        9: "Don't know / Not sure / Refused / Missing",
+        "BLANK": "Age < 65",
+    },
+    # ---------------------------------------------------------
+    # HIV calculated variable
+    # ---------------------------------------------------------
+    "_AIDTST3": {
+        1: "Ever tested for HIV",
+        2: "Never tested for HIV",
+        9: "Don't know / Not sure / Refused",
+        "BLANK": "Not asked / Missing",
+    },
+}
 
 
 def drop_named(x, names, to_drop=METADATA_FEATURES):
