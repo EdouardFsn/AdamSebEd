@@ -37,6 +37,25 @@ METADATA_FEATURES = [
     "_CLLCPWT",
     # Purely administrative / derived sampling variables
     "MSCODE",
+    # Interview month / year: when the survey was taken, not who was surveyed
+    "FMONTH",
+    "IMONTH",
+    "IYEAR",
+    # Household / phone bookkeeping (landline-only, ~40-60% blank by design)
+    "NUMADULT",
+    "NUMMEN",
+    "NUMWOMEN",
+    "HHADULT",
+    "LANDLINE",
+    "_DUALUSE",
+    "CCLGHOUS",
+    # Child-survey variables (about a child in the household, not the respondent)
+    "_CHISPNC",
+    "_CRACE1",
+    "_CPRACE",
+    # Raw dates encoded as MMYYYY: a linear model would read them as magnitudes
+    "FLSHTMY2",
+    "HIVTSTD3",
 ]
 
 # Codes meaning "don't know / not sure / refused" -> become NaN
@@ -91,6 +110,10 @@ MISSING_VALUES = {
     "DRNK3GE5": [77, 99],
     "MAXDRNKS": [77, 99],
     "CHILDREN": [99],
+    "INCOME2": [77, 99],
+    "DOCTDIAB": [77, 99],
+    # Age at diabetes diagnosis: 98 = don't know, 99 = refused
+    "DIABAGE2": [98, 99],
     # Three-digit frequency variables: 777 = don't know, 999 = refused
     "FRUITJU1": [777, 999],
     "FRUIT1": [777, 999],
@@ -99,6 +122,7 @@ MISSING_VALUES = {
     "FVORANG": [777, 999],
     "VEGETAB1": [777, 999],
     "ALCDAY5": [777, 999],
+    "STRENGTH": [777, 999],
     # Calculated-variable "unknown" codes (moved here from SPECIAL_VALUES)
     "DROCDY3_": [900],
     "_DRNKWEK": [99900],
@@ -118,11 +142,43 @@ MISSING_VALUES = {
     "_FLSHOT6": [9],
     "_PNEUMO2": [9],
     "_AIDTST3": [9],
-    # Physical-activity calculated quantities
-    "PAFREQ1_": [99000],
-    "PAFREQ2_": [99000],
-    "MAXVO2_": [99900],
-    "FC60_": [99900],
+    "_INCOMG": [9],
+    "_EDUCAG": [9],
+    "_RACE": [9],
+    "_RACEG21": [9],
+    "_RACEGR3": [9],
+    "_HISPANC": [9],
+    "_RFCHOL": [9],
+    "_CHOLCHK": [9],
+    "_RFSMOK3": [9],
+    "_RFBING5": [9],
+    "_RFDRHV5": [9],
+    "_FRTLT1": [9],
+    "_VEGLT1": [9],
+    "_TOTINDA": [9],
+    "_PA150R2": [9],
+    "_PA300R2": [9],
+    "_PA30021": [9],
+    "_PASTRNG": [9],
+    "_PAREC1": [9],
+    "_PASTAE1": [9],
+    "_LMTACT1": [9],
+    "_LMTWRK1": [9],
+    "_LMTSCL1": [9],
+    "_AGE65YR": [3],
+    "_PRACE1": [77, 99],
+    "_MRACE1": [77, 99],
+    "DRNKANY5": [7, 9],
+    # NOT listed on purpose: in _HCVU651, 9 mostly means "aged 65+, not asked"
+    # (~118k rows), so it is a real group, not an unknown answer.
+    # Physical-activity calculated quantities. The course data divided these
+    # by 1000 (PAFREQ*, STRFREQ_) or 100 (MAXVO2_, FC60_) compared with the
+    # BRFSS codebook, so the codebook's 99000 / 99900 appear here as 99 / 999.
+    "PAFREQ1_": [99],
+    "PAFREQ2_": [99],
+    "STRFREQ_": [99],
+    "MAXVO2_": [999],
+    "FC60_": [999],
 }
 
 # Codes that encode "none / zero" -> become 0
@@ -136,9 +192,18 @@ NONE_VALUES = {
     "ADFAIL": [88],
     "ADTHINK": [88],
     "ADMOVE": [88],
-    # Alcohol: did not drink in past 30 days
+    # Days of bad physical / mental health in the past 30 days: 88 = none
+    "PHYSHLTH": [88],
+    "MENTHLTH": [88],
+    "POORHLTH": [88],
+    # Alcohol: did not drink in past 30 days / no binge-drinking occasion
     "ALCDAY5": [888],
+    "DRNK3GE5": [88],
     "CHILDREN": [88],
+    # Strength exercise frequency: 888 = never
+    "STRENGTH": [888],
+    # Doctor visits for diabetes in past 12 months: 88 = none
+    "DOCTDIAB": [88],
 }
 
 # Nominal categoricals: integer codes carry NO natural order
