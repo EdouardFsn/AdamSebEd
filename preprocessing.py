@@ -58,6 +58,46 @@ METADATA_FEATURES = [
     "HIVTSTD3",
 ]
 
+# Raw answers that pack a unit and a value into one number, e.g. ALCDAY5:
+# 1xx = days per week, 2xx = days in past 30, 888 = none. A linear model would
+# read 230 (30 days a month) as more than 107 (7 days a week), which is wrong.
+# BRFSS already provides a decoded version of each one, so we drop the raw
+# column. Checked on x_train: the decoded column is present for 100% of valid
+# raw answers and blank where the raw answer is don't know / refused.
+PACKED_FEATURES = [
+    # Alcohol -> DROCDY3_ (drink-days per 100 days), _DRNKWEK (drinks per week)
+    "ALCDAY5",
+    # Fruit / vegetables (1xx per day, 2xx per week, 3xx per month,
+    # 555 = never) -> FTJUDA1_, FRUTDA1_, BEANDAY_, GRENDAY_, ORNGDAY_,
+    # VEGEDA1_ (times per day) and the sums _FRUTSUM, _VEGESUM
+    "FRUITJU1",
+    "FRUIT1",
+    "FVBEANS",
+    "FVGREEN",
+    "FVORANG",
+    "VEGETAB1",
+    # Exercise (1xx per week, 2xx per month; durations as H:MM, so 130 = 1h30)
+    # -> PAFREQ1_, PAFREQ2_ (times per week), PADUR1_, PADUR2_ (minutes)
+    "EXEROFT1",
+    "EXEROFT2",
+    "EXERHMM1",
+    "EXERHMM2",
+    # Strength training (1xx per week, 2xx per month, 888 = never) -> STRFREQ_
+    "STRENGTH",
+    # Weight mixes pounds and kg (9xxx), height mixes ft-in (507 = 5'7") and
+    # cm (9xxx), both with 7777 / 9999 codes -> WTKG3 (kg), HTM4 (m), _BMI5
+    "WEIGHT2",
+    "HEIGHT3",
+    # Diabetes self-care frequencies (same 1xx/2xx/3xx scheme) have no decoded
+    # version, but only diabetics were asked (93% blank) and DIABETE3 already
+    # carries that information.
+    "BLDSUGAR",
+    "FEETCHK2",
+]
+
+# Everything drop_named removes by default
+DROP_FEATURES = METADATA_FEATURES + PACKED_FEATURES
+
 # Codes meaning "don't know / not sure / refused" -> become NaN
 MISSING_VALUES = {
     # Single-digit categoricals: 7 = don't know, 9 = refused
@@ -114,15 +154,8 @@ MISSING_VALUES = {
     "DOCTDIAB": [77, 99],
     # Age at diabetes diagnosis: 98 = don't know, 99 = refused
     "DIABAGE2": [98, 99],
-    # Three-digit frequency variables: 777 = don't know, 999 = refused
-    "FRUITJU1": [777, 999],
-    "FRUIT1": [777, 999],
-    "FVBEANS": [777, 999],
-    "FVGREEN": [777, 999],
-    "FVORANG": [777, 999],
-    "VEGETAB1": [777, 999],
-    "ALCDAY5": [777, 999],
-    "STRENGTH": [777, 999],
+    # (The 777 / 999 codes of the packed frequency variables are not listed:
+    # those columns are dropped, see PACKED_FEATURES.)
     # Calculated-variable "unknown" codes (moved here from SPECIAL_VALUES)
     "DROCDY3_": [900],
     "_DRNKWEK": [99900],
@@ -196,12 +229,9 @@ NONE_VALUES = {
     "PHYSHLTH": [88],
     "MENTHLTH": [88],
     "POORHLTH": [88],
-    # Alcohol: did not drink in past 30 days / no binge-drinking occasion
-    "ALCDAY5": [888],
+    # Alcohol: no binge-drinking occasion in past 30 days
     "DRNK3GE5": [88],
     "CHILDREN": [88],
-    # Strength exercise frequency: 888 = never
-    "STRENGTH": [888],
     # Doctor visits for diabetes in past 12 months: 88 = none
     "DOCTDIAB": [88],
 }
@@ -224,7 +254,7 @@ DEPENDENT_FEATURES = {
 }
 
 
-def drop_named(x, names, to_drop=METADATA_FEATURES):
+def drop_named(x, names, to_drop=DROP_FEATURES):
     """Drop columns whose name is in `to_drop`. Returns reduced x, names, and the mask."""
     keep = np.array([n not in to_drop for n in names])
     return x[:, keep], [n for n, k in zip(names, keep) if k], keep
