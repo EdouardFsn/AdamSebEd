@@ -141,6 +141,23 @@ MISSING_VALUES = {
     "LSATISFY": [7, 9],
     "MISTMNT": [7, 9],
     "ADANXEV": [7, 9],
+    "DIFFWALK": [7, 9],
+    "USEEQUIP": [7, 9],
+    "QLACTLM2": [7, 9],
+    "BLIND": [7, 9],
+    "DECIDE": [7, 9],
+    "DIFFDRES": [7, 9],
+    "DIFFALON": [7, 9],
+    "VETERAN3": [7, 9],
+    "INTERNET": [7, 9],
+    "RENTHOM1": [7, 9],
+    "NUMHHOL2": [7, 9],
+    "CPDEMO1": [7, 9],
+    "LMTJOIN3": [7, 9],
+    "ARTHDIS2": [7, 9],
+    "ARTHSOCL": [7, 9],
+    "CIMEMLOS": [7, 9],
+    "SEATBELT": [7, 9],
     # Two-digit numeric quantities: 77 = don't know, 99 = refused
     "PHYSHLTH": [77, 99],
     "MENTHLTH": [77, 99],
@@ -152,6 +169,14 @@ MISSING_VALUES = {
     "CHILDREN": [99],
     "INCOME2": [77, 99],
     "DOCTDIAB": [77, 99],
+    "JOINPAIN": [77, 99],
+    "IMFVPLAC": [77, 99],
+    "WHRTST10": [77, 99],
+    "SCNTLWK1": [97, 99],
+    "CHKHEMO3": [77, 99],
+    "ASERVIST": [98],
+    "ASDRVIST": [98],
+    "ASRCHKUP": [98, 99],
     # Age at diabetes diagnosis: 98 = don't know, 99 = refused
     "DIABAGE2": [98, 99],
     # (The 777 / 999 codes of the packed frequency variables are not listed:
@@ -212,6 +237,7 @@ MISSING_VALUES = {
     "STRFREQ_": [99],
     "MAXVO2_": [999],
     "FC60_": [999],
+    "ASACTLIM": [777, 999],
 }
 
 # Codes that encode "none / zero" -> become 0
@@ -234,6 +260,14 @@ NONE_VALUES = {
     "CHILDREN": [88],
     # Doctor visits for diabetes in past 12 months: 88 = none
     "DOCTDIAB": [88],
+    # Diabetes and asthma visit/test counts
+    "CHKHEMO3": [88],
+    "ASERVIST": [88],
+    "ASDRVIST": [88],
+    "ASRCHKUP": [88],
+    "ASACTLIM": [888],
+    # Zero hours worked
+    "SCNTLWK1": [98],
 }
 
 # Nominal categoricals: integer codes carry NO natural order
@@ -244,6 +278,13 @@ CATEGORICAL_FEATURES = [
     "ACTIN11_",
     "ACTIN21_",
     "_ASTHMS1",
+    "_STATE",
+    "BPHIGH4",
+    "DIABETE3",
+    "PERSDOC2",
+    "CHECKUP1",
+    "_RACE",
+    "RENTHOM1",
 ]
 
 # Conditional ("skip-logic") features: a blank means the question was NOT asked because a precursor answer made it irrelevant
