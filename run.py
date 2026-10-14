@@ -109,8 +109,16 @@ def main():
         ytr, xtr, lambda_=0.0, initial_w=w0, max_iters=500, gamma=0.1
     )
 
+    print("\nthreshold sweep:")
+    for t in [0.3, 0.2, 0.15, 0.1]:
+        pred_t = predict_logistic(xval, w, threshold=t)
+        print(
+            f"  t={t:.3f} | F1={f1_score(yval, pred_t):.3f} | "
+            f"frac_pos={np.mean(pred_t):.3f}"
+        )
+
     pred = predict_logistic(xval, w)
-    print("train loss:   ", loss)
+    print("\ntrain loss:   ", loss)
     print("validation F1:", f1_score(yval, pred))
     print("validation acc:", np.mean(pred == yval))
     print("fraction predicted positive:", np.mean(pred))
