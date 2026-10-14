@@ -1,7 +1,7 @@
 import numpy as np
 from helpers import load_csv_data
 from preprocessing import preprocess_fit, preprocess_apply
-from evaluation import train_val_split, f1_score, predict_logistic
+from evaluation import predict_proba, train_val_split, f1_score, threshold_sweep
 from implementations import reg_logistic_regression
 
 
@@ -15,10 +15,8 @@ def main():
 
     xtr_raw, ytr, xval_raw, yval = train_val_split(x_train, y01, val_ratio=0.2, seed=0)
 
-    # split names stay aligned with columns (same for every row)
     xtr, state = preprocess_fit(xtr_raw, feature_names)
     xval = preprocess_apply(xval_raw, feature_names, state)
-
     print("xtr:", xtr.shape, "| xval:", xval.shape)
 
     w0 = np.zeros(xtr.shape[1])
@@ -26,19 +24,17 @@ def main():
         ytr, xtr, lambda_=0.0, initial_w=w0, max_iters=500, gamma=0.1
     )
 
-    print("\nthreshold sweep:")
-    for t in [0.3, 0.2, 0.15, 0.1]:
-        pred_t = predict_logistic(xval, w, threshold=t)
-        print(
-            f"  t={t:.3f} | F1={f1_score(yval, pred_t):.3f} | "
-            f"frac_pos={np.mean(pred_t):.3f}"
-        )
+    prob = predict_proba(xval, w)
 
-    pred = predict_logistic(xval, w)
-    print("\ntrain loss:   ", loss)
-    print("validation F1:", f1_score(yval, pred))
-    print("validation acc:", np.mean(pred == yval))
-    print("fraction predicted positive:", np.mean(pred))
+    print("\nthreshold sweep:")
+    for t, f1, frac in threshold_sweep(yval, prob, [0.3, 0.2, 0.15, 0.1]):
+        print(f"  t={t:.3f} | F1={f1:.3f} | frac_pos={frac:.3f}")
+
+    best_t = 0.2
+    print(f"\ntrain loss: {loss:.4f}")
+    print(
+        f"validation F1 (t={best_t}): {f1_score(yval, (prob >= best_t).astype(float)):.3f}"
+    )
 
 
 if __name__ == "__main__":

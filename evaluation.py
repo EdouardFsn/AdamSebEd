@@ -20,7 +20,20 @@ def f1_score(y_true, y_pred):
     return 2 * precision * recall / (precision + recall) if precision + recall else 0.0
 
 
+def predict_proba(tx, w):
+    """Model's predicted probability of class 1."""
+    return 1 / (1 + np.exp(-tx @ w))
+
+
 def predict_logistic(tx, w, threshold=0.5):
     """Probability >= threshold -> class 1, else class 0."""
-    prob = 1 / (1 + np.exp(-tx @ w))
-    return (prob >= threshold).astype(float)
+    return (predict_proba(tx, w) >= threshold).astype(float)
+
+
+def threshold_sweep(y_true, prob, thresholds):
+    """F1 and positive-fraction at each threshold. Returns list of (t, f1, frac)."""
+    results = []
+    for t in thresholds:
+        pred = (prob >= t).astype(float)
+        results.append((t, f1_score(y_true, pred), float(np.mean(pred))))
+    return results
