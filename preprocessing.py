@@ -425,7 +425,10 @@ def add_bias(x):
     return np.c_[np.ones(x.shape[0]), x]
 
 
-def preprocess_fit(x, names):
+# The two following functions are used in run.py, they call all the above helpers in the correct order to clean and standardize the training data, and then replay the same transformations on validation/test data.
+
+
+def preprocess_fit(x, names, use_categoricals=False, use_dependent=False):
     """Clean training data, and RETURN the stats learned, so the exact same
     transform can be replayed on validation/test.
 
@@ -458,7 +461,7 @@ def preprocess_fit(x, names):
     return x, state
 
 
-def preprocess_apply(x, names, state):
+def preprocess_apply(x, names, state, use_categoricals=False, use_dependent=False):
     """Replay the training recipe on new data (validation or test).
     Uses the stats in `state` — never recomputes anything from this data.
     """
