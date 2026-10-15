@@ -423,3 +423,55 @@ def add_bias(x):
         numpy array of shape (N, D + 1), with a leading column of ones.
     """
     return np.c_[np.ones(x.shape[0]), x]
+
+
+# The two following functions are used in run.py, they call all the above helpers in the correct order to clean and standardize the training data, and then replay the same transformations on validation/test data.
+
+
+def preprocess_fit(x, names, use_categoricals=False, use_dependent=False):
+    """Clean training data, and RETURN the stats learned, so the exact same
+    transform can be replayed on validation/test.
+
+    Returns:
+        x_clean: the processed training matrix (with bias column).
+        state: dict of everything learned on train (which columns to keep,
+               medians, mean, std) — the "recipe" to replay elsewhere.
+    """
+    x = apply_none_map(x, names)  # none-codes -> 0   (while values are raw)
+    x = apply_missing_map(x, names)  # sentinels  -> nan
+
+    x, names, keep_named = drop_named(x, names)  # drop metadata
+    x, names, keep_missing = drop_high_missing(x, names)  # drop near-empty cols
+
+    medians = fit_impute(x)  # learn medians on train
+    x = apply_impute(x, medians)
+
+    mean, std = fit_standardize(x)  # learn scale on train
+    x = apply_standardize(x, mean, std)
+
+    x = add_bias(x)
+
+    state = {
+        "keep_named": keep_named,
+        "keep_missing": keep_missing,
+        "medians": medians,
+        "mean": mean,
+        "std": std,
+    }
+    return x, state
+
+
+def preprocess_apply(x, names, state, use_categoricals=False, use_dependent=False):
+    """Replay the training recipe on new data (validation or test).
+    Uses the stats in `state` — never recomputes anything from this data.
+    """
+    x = apply_none_map(x, names)
+    x = apply_missing_map(x, names)
+
+    x = x[:, state["keep_named"]]  # same column drops as train
+    x = x[:, state["keep_missing"]]
+
+    x = apply_impute(x, state["medians"])  # train medians
+    x = apply_standardize(x, state["mean"], state["std"])  # train scale
+    x = add_bias(x)
+    return x
