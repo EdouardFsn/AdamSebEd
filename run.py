@@ -15,7 +15,7 @@ def main():
 
     xtr_raw, ytr, xval_raw, yval = train_val_split(x_train, y01, val_ratio=0.2, seed=0)
 
-    xtr, state = preprocess_fit(xtr_raw, feature_names)
+    xtr, state = preprocess_fit(xtr_raw, feature_names, use_categoricals=True)
     xval = preprocess_apply(xval_raw, feature_names, state)
     print("xtr:", xtr.shape, "| xval:", xval.shape)
 
