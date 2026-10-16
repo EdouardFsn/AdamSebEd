@@ -510,16 +510,28 @@ def preprocess_fit(x, names, use_categoricals=False, use_dependent=False):
     """Clean training data, and RETURN the stats learned, so the exact same
     transform can be replayed on validation/test.
 
+    Args:
+        x: numpy array of shape (N, D), raw training features.
+        names: list of D feature names, aligned with the columns of x.
+        use_categoricals: if True, one-hot encode CATEGORICAL_FEATURES.
+        use_dependent: not used yet.
+
     Returns:
         x_clean: the processed training matrix (with bias column).
-        state: dict of everything learned on train (which columns to keep,
-               medians, mean, std) — the "recipe" to replay elsewhere.
+        state: dict of everything learned on train (options, kept columns,
+               categories, medians, mean, std) - the "recipe" to replay
+               on validation / test with preprocess_apply.
     """
     x = apply_none_map(x, names)  # none-codes -> 0   (while values are raw)
     x = apply_missing_map(x, names)  # sentinels  -> nan
 
     x, names, keep_named = drop_named(x, names)  # drop metadata
     x, names, keep_missing = drop_high_missing(x, names)  # drop near-empty cols
+
+    categories = {}
+    if use_categoricals:
+        categories = fit_onehot(x, names)  # learn categories on train only
+        x, names = apply_onehot(x, names, categories)
 
     medians = fit_impute(x)  # learn medians on train
     x = apply_impute(x, medians)
@@ -530,8 +542,12 @@ def preprocess_fit(x, names, use_categoricals=False, use_dependent=False):
     x = add_bias(x)
 
     state = {
+        "use_dependent": use_dependent,  # replayed as is by preprocess_apply
+        "use_categoricals": use_categoricals,  # replayed as is by preprocess_apply
         "keep_named": keep_named,
         "keep_missing": keep_missing,
+        "categories": categories,
+        "out_names": ["bias"] + names,  # name of each column of x_clean
         "medians": medians,
         "mean": mean,
         "std": std,
@@ -539,15 +555,31 @@ def preprocess_fit(x, names, use_categoricals=False, use_dependent=False):
     return x, state
 
 
-def preprocess_apply(x, names, state, use_categoricals=False, use_dependent=False):
+#DO NOT USE use_dependant as an input anymore, make it pass throught the states
+def preprocess_apply(x, names, state):
     """Replay the training recipe on new data (validation or test).
-    Uses the stats in `state` — never recomputes anything from this data.
+    Uses only what is stored in `state`: never recomputes anything from this
+    data, and makes the same choices (e.g. one-hot or not) as preprocess_fit.
+
+    Args:
+        x: numpy array of shape (N, D), raw features (same columns as train).
+        names: list of D feature names, aligned with the columns of x.
+        state: dict returned by preprocess_fit.
+
+    Returns:
+        numpy array with exactly the same columns as the training matrix.
     """
     x = apply_none_map(x, names)
     x = apply_missing_map(x, names)
 
-    x = x[:, state["keep_named"]]  # same column drops as train
+    # Same column drops as train, keeping `names` aligned with the columns of x
+    x = x[:, state["keep_named"]]
+    names = [n for n, k in zip(names, state["keep_named"]) if k]
     x = x[:, state["keep_missing"]]
+    names = [n for n, k in zip(names, state["keep_missing"]) if k]
+
+    if state["use_categoricals"]:
+        x, names = apply_onehot(x, names, state["categories"])  # train categories
 
     x = apply_impute(x, state["medians"])  # train medians
     x = apply_standardize(x, state["mean"], state["std"])  # train scale
