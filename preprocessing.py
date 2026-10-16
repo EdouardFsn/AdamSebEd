@@ -388,7 +388,7 @@ def fit_onehot(x, names, cat_features=CATEGORICAL_FEATURES, min_frac=0.001):
 
     The most frequent category is the reference level: it gets no column
     (otherwise the one-hot columns of a feature would sum to the bias column).
-    Categories seen fewer than min_count times get no column either.
+    Categories seen less often than min_frac times get no column either.
 
     Returns:
         categories: dict {feature_name: array of category values that get a column}.
