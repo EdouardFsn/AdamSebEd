@@ -71,6 +71,13 @@ METADATA_FEATURES = [
     # Only asked to 65+ (64% blank); FLUSHOT6 / PNEUVAC3 cover everyone
     "_FLSHOT6",
     "_PNEUMO2",
+    # Race / ethnicity: same information as _RACE (one-hot encoded)
+    "_PRACE1",
+    "_MRACE1",
+    "_RACEGR3", 
+    "_RACE_G1",
+    "_RACEG21",
+    "_HISPANC",
 ]
 
 # Raw answers that pack a unit and a value into one number, e.g. ALCDAY5:
@@ -175,7 +182,7 @@ MISSING_VALUES = {
     "ARTHDIS2": [7, 9],
     "ARTHSOCL": [7, 9],
     "CIMEMLOS": [7, 9],
-    "SEATBELT": [7, 9],
+    "SEATBELT": [7, 8, 9],
     # Two-digit numeric quantities: 77 = don't know, 99 = refused
     "PHYSHLTH": [77, 99],
     "MENTHLTH": [77, 99],
@@ -291,21 +298,20 @@ NONE_VALUES = {
     "SCNTLWK1": [98],
 }
 
-# Nominal categoricals: integer codes carry NO natural order
+# Nominal or order-breaking categoricals -> one-hot encoded
 CATEGORICAL_FEATURES = [
-    "MARITAL",
-    "EMPLOY1",
-    "_SMOKER3",
-    "ACTIN11_",
-    "ACTIN21_",
-    "_ASTHMS1",
-    "_STATE",
-    "BPHIGH4",
-    "DIABETE3",
-    "PERSDOC2",
-    "CHECKUP1",
-    "_RACE",
-    "RENTHOM1",
+    "MARITAL",   # married / divorced / widowed / ... : no order
+    "EMPLOY1",   # employed / student / retired / unable to work : no order
+    "_RACE",     # race / ethnicity groups : no order
+    "_STATE",    # US state FIPS code : no order (53 values)
+    "RENTHOM1",  # own / rent / other : no order
+    "PERSDOC2",  # 1 = one doctor, 2 = more than one, 3 = none : "none" is not "more"
+    "BPHIGH4",   # 1 yes, 2 yes only in pregnancy, 3 no, 4 borderline : order broken
+    "DIABETE3",  # 1 yes, 2 pregnancy only, 3 no, 4 pre-diabetes : order broken
+    "CHECKUP1",  # 1-4 = years since checkup, 8 = never : order broken
+    "_PAREC1",   # met both / aerobic only / strength only / neither : 2 vs 3 not ordered
+    "SXORIENT",  # straight / gay / bisexual / other : no order
+    "WHRTST10",  # place of HIV test : no order
 ]
 
 # Conditional ("skip-logic") features: a blank means the question was NOT asked because a precursor answer made it irrelevant
@@ -374,6 +380,57 @@ def drop_high_missing(x, names, max_missing=0.8):
     missing_frac = np.isnan(x).mean(axis=0)
     keep = missing_frac <= max_missing
     return x[:, keep], [n for n, k in zip(names, keep) if k], keep
+
+
+
+def fit_onehot(x, names, cat_features=CATEGORICAL_FEATURES, min_frac=0.001):
+    """Learn, on TRAIN only, the categories of each categorical column.
+
+    The most frequent category is the reference level: it gets no column
+    (otherwise the one-hot columns of a feature would sum to the bias column).
+    Categories seen fewer than min_count times get no column either.
+
+    Returns:
+        categories: dict {feature_name: array of category values that get a column}.
+    """
+    categories = {}
+    for j, name in enumerate(names):
+        if name not in cat_features:
+            continue
+        col = x[:, j]
+        vals, counts = np.unique(col[~np.isnan(col)], return_counts=True)
+        reference = vals[np.argmax(counts)]
+        keep = (counts >= min_frac * len(col)) & (vals != reference)
+        categories[name] = vals[keep]
+    return categories
+
+
+def apply_onehot(x, names, categories):
+    """Replace each categorical column by one 0/1 column per learned category,
+    plus one column flagging missing values.
+
+    Reference, rare and unseen categories are all-zeros. Missing values are
+    all-zeros except in the "=nan" column, so they need no imputation.
+
+    Returns:
+        out: numeric columns first, then the one-hot columns.
+        out_names: list of the corresponding column names.
+    """
+    numeric = [j for j, n in enumerate(names) if n not in categories]
+    blocks = [x[:, numeric]]
+    out_names = [names[j] for j in numeric]
+
+    for j, name in enumerate(names):
+        if name not in categories:
+            continue
+        col = x[:, j]
+        for v in categories[name]:
+            blocks.append((col == v).astype(float)[:, None])
+            out_names.append(f"{name}={v:g}")
+        blocks.append(np.isnan(col).astype(float)[:, None])
+        out_names.append(f"{name}=nan")
+
+    return np.hstack(blocks), out_names
 
 
 def fit_impute(x):
