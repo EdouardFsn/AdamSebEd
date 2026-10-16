@@ -56,6 +56,21 @@ METADATA_FEATURES = [
     # Raw dates encoded as MMYYYY: a linear model would read them as magnitudes
     "FLSHTMY2",
     "HIVTSTD3",
+    # Place of vaccination: nominal, 57% blank
+    "IMFVPLAC",
+    "EXRACT11",
+    "EXRACT21",
+    # Data-quality flags: whether an answer was missing, not a health answer
+    "_MISFRTN",
+    "_MISVEGN",
+    "_FRTRESP",
+    "_VEGRESP",
+    "_FRUITEX",
+    "_VEGETEX",
+    "PAMISS1_",
+    # Only asked to 65+ (64% blank); FLUSHOT6 / PNEUVAC3 cover everyone
+    "_FLSHOT6",
+    "_PNEUMO2",
 ]
 
 # Raw answers that pack a unit and a value into one number, e.g. ALCDAY5:
@@ -93,6 +108,9 @@ PACKED_FEATURES = [
     # carries that information.
     "BLDSUGAR",
     "FEETCHK2",
+    # 9 mixes "aged 65+, not asked" (36% of rows) with "don't know";
+    # rebuilt from HLTHPLN1 + age anyway
+    "_HCVU651",
 ]
 
 # Everything drop_named removes by default
@@ -170,10 +188,17 @@ MISSING_VALUES = {
     "INCOME2": [77, 99],
     "DOCTDIAB": [77, 99],
     "JOINPAIN": [77, 99],
-    "IMFVPLAC": [77, 99],
     "WHRTST10": [77, 99],
+    "ADPLEASR": [77, 99],
+    "ADDOWN": [77, 99], 
+    "ADSLEEP": [77, 99],
+    "ADENERGY": [77, 99],
+    "ADEAT1": [77, 99],
+    "ADFAIL": [77, 99],
+    "ADTHINK": [77, 99],
+    "ADMOVE": [77, 99],
     "SCNTLWK1": [97, 99],
-    "CHKHEMO3": [77, 99],
+    "CHKHEMO3": [77, 98, 99],
     "ASERVIST": [98],
     "ASDRVIST": [98],
     "ASRCHKUP": [98, 99],
@@ -197,8 +222,6 @@ MISSING_VALUES = {
     "_RFSEAT3": [9],
     "_SMOKER3": [9],
     "_CHLDCNT": [9],
-    "_FLSHOT6": [9],
-    "_PNEUMO2": [9],
     "_AIDTST3": [9],
     "_INCOMG": [9],
     "_EDUCAG": [9],
@@ -227,8 +250,6 @@ MISSING_VALUES = {
     "_PRACE1": [77, 99],
     "_MRACE1": [77, 99],
     "DRNKANY5": [7, 9],
-    # NOT listed on purpose: in _HCVU651, 9 mostly means "aged 65+, not asked"
-    # (~118k rows), so it is a real group, not an unknown answer.
     # Physical-activity calculated quantities. The course data divided these
     # by 1000 (PAFREQ*, STRFREQ_) or 100 (MAXVO2_, FC60_) compared with the
     # BRFSS codebook, so the codebook's 99000 / 99900 appear here as 99 / 999.
