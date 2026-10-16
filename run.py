@@ -26,15 +26,22 @@ def main():
 
     prob = predict_proba(xval, w)
 
-    print("\nthreshold sweep:")
-    for t, f1, frac in threshold_sweep(yval, prob, [0.3, 0.2, 0.15, 0.1]):
-        print(f"  t={t:.3f} | F1={f1:.3f} | frac_pos={frac:.3f}")
+    # Sanity checks: preprocessing must leave no NaN, and train/val must match
+    assert not np.isnan(xtr).any() and not np.isnan(xval).any(), "NaN left after preprocessing"
+    assert xtr.shape[1] == xval.shape[1], "train / val column mismatch"
 
-    best_t = 0.2
+    # Fine threshold sweep, best threshold picked automatically
+    thresholds = np.arange(0.05, 0.51, 0.01)
+    results = threshold_sweep(yval, prob, thresholds)
+    best_t, best_f1, best_frac = max(results, key=lambda r: r[1])
+
+    print("\nthreshold sweep (every 0.01):")
+    for t, f1, frac in results:
+        print(f"  t={t:.2f} | F1={f1:.3f} | frac_pos={frac:.3f}")
+
     print(f"\ntrain loss: {loss:.4f}")
-    print(
-        f"validation F1 (t={best_t}): {f1_score(yval, (prob >= best_t).astype(float)):.3f}"
-    )
+    print(f"val positive rate: {yval.mean():.3f}")
+    print(f"BEST: t={best_t:.2f} | F1={best_f1:.3f} | frac_pos={best_frac:.3f}")
 
 
 if __name__ == "__main__":
