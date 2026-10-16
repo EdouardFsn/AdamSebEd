@@ -1,8 +1,10 @@
 import numpy as np
 from helpers import load_csv_data
 from preprocessing import preprocess_fit, preprocess_apply
-from evaluation import predict_proba, train_val_split, f1_score, threshold_sweep
+from evaluation import predict_proba, train_val_split, threshold_sweep
 from implementations import reg_logistic_regression
+
+USE_CATEGORICALS = True
 
 
 def main():
@@ -15,10 +17,14 @@ def main():
 
     xtr_raw, ytr, xval_raw, yval = train_val_split(x_train, y01, val_ratio=0.2, seed=0)
 
-    xtr, state = preprocess_fit(xtr_raw, feature_names)
+    xtr, state = preprocess_fit(xtr_raw, feature_names, use_categoricals=USE_CATEGORICALS)
     xval = preprocess_apply(xval_raw, feature_names, state)
     print("xtr:", xtr.shape, "| xval:", xval.shape)
 
+    # Sanity checks: preprocessing must leave no NaN, and train/val must match
+    assert not np.isnan(xtr).any() and not np.isnan(xval).any(), "NaN left after preprocessing"
+    assert xtr.shape[1] == xval.shape[1], "train / val column mismatch"
+    
     w0 = np.zeros(xtr.shape[1])
     w, loss = reg_logistic_regression(
         ytr, xtr, lambda_=0.0, initial_w=w0, max_iters=500, gamma=0.1
@@ -26,9 +32,6 @@ def main():
 
     prob = predict_proba(xval, w)
 
-    # Sanity checks: preprocessing must leave no NaN, and train/val must match
-    assert not np.isnan(xtr).any() and not np.isnan(xval).any(), "NaN left after preprocessing"
-    assert xtr.shape[1] == xval.shape[1], "train / val column mismatch"
 
     # Fine threshold sweep, best threshold picked automatically
     thresholds = np.arange(0.05, 0.51, 0.01)
