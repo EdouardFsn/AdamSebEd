@@ -28,13 +28,13 @@ def main():
         k=5,
         threshold=0.2,
         seed=0,
-        use_categoricals=False,
+        use_categoricals=True,
         use_dependent=False,
     )
 
     mean, std = summarize_cv(scores)
     print(
-        f"baseline | CV F1: {mean:.3f} ± {std:.3f} | folds: {np.round(scores, 3)}"
+        f"categorical | CV F1: {mean:.3f} ± {std:.3f} | folds: {np.round(scores, 3)}"
     )  # baseline for now, replace when you add true to cat and dep
 
 
