@@ -355,6 +355,68 @@ def drop_high_missing(x, names, max_missing=0.8):
     return x[:, keep], [n for n, k in zip(names, keep) if k], keep
 
 
+def fit_onehot(x, names, categorical=CATEGORICAL_FEATURES):
+    """Learn how to one-hot encode each nominal categorical column.
+
+    The most frequent value of each column is the reference level and gets no
+    indicator column (it is encoded as all zeros). Otherwise the indicators of
+    one feature would sum to the bias column and make least_squares singular.
+    If the column has missing values, "missing" gets its own indicator, so that
+    it is not confused with the reference level.
+
+    Args:
+        x: numpy array of shape (N, D), the features (missing values as nan).
+        names: list of D feature names, aligned with the columns of x.
+        categorical: list of names of the columns to encode.
+
+    Returns:
+        encoding: list of (name, levels, has_missing) tuples, one per encoded
+            column. levels are the non-reference values that get an indicator
+            column, has_missing says whether a "missing" indicator is added.
+    """
+    encoding = []
+    for j, name in enumerate(names):
+        if name not in categorical:
+            continue
+        col = x[:, j]
+        values, counts = np.unique(col[~np.isnan(col)], return_counts=True)
+        reference = values[np.argmax(counts)]
+        levels = [v for v in values if v != reference]
+        encoding.append((name, levels, bool(np.isnan(col).any())))
+    return encoding
+
+
+def apply_onehot(x, names, encoding):
+    """Replace each encoded column by its indicator columns (per encoding).
+
+    The reference level, and any value not seen when fitting, become all zeros.
+
+    Args:
+        x: numpy array of shape (N, D), the features (missing values as nan).
+        names: list of D feature names, aligned with the columns of x.
+        encoding: list of (name, levels, has_missing), from fit_onehot.
+
+    Returns:
+        out: numpy array of shape (N, D_out), the non-encoded columns followed
+            by the indicator columns.
+        names_out: list of D_out feature names, indicators are named like
+            "EMPLOY1=7" or "EMPLOY1=missing".
+    """
+    encoded = {name for name, _, _ in encoding}
+    keep = [j for j, name in enumerate(names) if name not in encoded]
+    columns = [x[:, keep]]
+    names_out = [names[j] for j in keep]
+    for name, levels, has_missing in encoding:
+        col = x[:, names.index(name)]
+        for value in levels:
+            columns.append((col == value).astype(float)[:, None])
+            names_out.append(f"{name}={value:g}")
+        if has_missing:
+            columns.append(np.isnan(col).astype(float)[:, None])
+            names_out.append(f"{name}=missing")
+    return np.hstack(columns), names_out
+
+
 def fit_impute(x):
     """Compute the per-column median, ignoring missing values.
 
@@ -432,16 +494,25 @@ def preprocess_fit(x, names, use_categoricals=False, use_dependent=False):
     """Clean training data, and RETURN the stats learned, so the exact same
     transform can be replayed on validation/test.
 
+    Args:
+        use_categoricals: if True, one-hot encode CATEGORICAL_FEATURES instead
+            of feeding their raw integer codes to the model.
+
     Returns:
         x_clean: the processed training matrix (with bias column).
         state: dict of everything learned on train (which columns to keep,
-               medians, mean, std) — the "recipe" to replay elsewhere.
+               one-hot encoding, medians, mean, std, final feature names)
+               — the "recipe" to replay elsewhere.
     """
     x = apply_none_map(x, names)  # none-codes -> 0   (while values are raw)
     x = apply_missing_map(x, names)  # sentinels  -> nan
 
     x, names, keep_named = drop_named(x, names)  # drop metadata
     x, names, keep_missing = drop_high_missing(x, names)  # drop near-empty cols
+
+    # before imputing, so that missing values get their own indicator column
+    encoding = fit_onehot(x, names) if use_categoricals else []
+    x, names = apply_onehot(x, names, encoding)
 
     medians = fit_impute(x)  # learn medians on train
     x = apply_impute(x, medians)
@@ -454,22 +525,30 @@ def preprocess_fit(x, names, use_categoricals=False, use_dependent=False):
     state = {
         "keep_named": keep_named,
         "keep_missing": keep_missing,
+        "encoding": encoding,
         "medians": medians,
         "mean": mean,
         "std": std,
+        "names": ["bias"] + names,  # aligned with the columns of x_clean / w
     }
     return x, state
 
 
-def preprocess_apply(x, names, state, use_categoricals=False, use_dependent=False):
+def preprocess_apply(x, names, state, use_dependent=False):
     """Replay the training recipe on new data (validation or test).
     Uses the stats in `state` — never recomputes anything from this data.
+    Whether categoricals are one-hot encoded is also read from `state`, so
+    validation/test are always encoded the same way as train.
     """
     x = apply_none_map(x, names)
     x = apply_missing_map(x, names)
 
     x = x[:, state["keep_named"]]  # same column drops as train
     x = x[:, state["keep_missing"]]
+    names = [n for n, k in zip(names, state["keep_named"]) if k]
+    names = [n for n, k in zip(names, state["keep_missing"]) if k]
+
+    x, _ = apply_onehot(x, names, state["encoding"])  # train levels
 
     x = apply_impute(x, state["medians"])  # train medians
     x = apply_standardize(x, state["mean"], state["std"])  # train scale
