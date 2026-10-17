@@ -23,7 +23,7 @@ def make_submission(
     use_dependent=False,
 ):
     """Train on all data, predict on test, write an AIcrowd-ready CSV."""
-    xtr, state = preprocess_fit(x_train, names, use_categoricals=use_categoricals)
+    xtr, state = preprocess_fit(x_train, names, use_categoricals=use_categoricals, use_dependent=use_dependent)
     xte = preprocess_apply(x_test, names, state)
 
     w = train_baseline(xtr, y01)  # same trainer CV uses
@@ -46,6 +46,7 @@ def main():
     USE_CAT = True
     USE_DEP = False
     THRESHOLD = 0.2
+    MAKE_SUBMISSION = False  # NEW: set to True only to write submission.csv
 
     scores = cross_validate(
         x_train,
@@ -61,16 +62,17 @@ def main():
     mean, std = summarize_cv(scores)
     print(f"CV F1: {mean:.3f} ± {std:.3f} | folds: {np.round(scores, 3)}")
 
-    make_submission(
-        x_train,
-        y01,
-        x_test,
-        feature_names,
-        test_ids,
-        threshold=THRESHOLD,
-        use_categoricals=USE_CAT,
-        use_dependent=USE_DEP,
-    )
+    MAKE_SUBMISSION = False  # NEW: set to True only to write submission.csv
+        make_submission(
+            x_train,
+            y01,
+            x_test,
+            feature_names,
+            test_ids,
+            threshold=THRESHOLD,
+            use_categoricals=USE_CAT,
+            use_dependent=USE_DEP,
+        )
 
 
 if __name__ == "__main__":
