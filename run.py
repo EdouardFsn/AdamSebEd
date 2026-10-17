@@ -13,7 +13,14 @@ def train_baseline(xtr, ytr):
 
 
 def make_submission(
-    x_train, y01, x_test, names, test_ids, threshold=0.2, use_categoricals=True
+    x_train,
+    y01,
+    x_test,
+    names,
+    test_ids,
+    threshold=0.2,
+    use_categoricals=True,
+    use_dependent=False,
 ):
     """Train on all data, predict on test, write an AIcrowd-ready CSV."""
     xtr, state = preprocess_fit(x_train, names, use_categoricals=use_categoricals)
