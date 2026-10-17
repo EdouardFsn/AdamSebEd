@@ -389,6 +389,32 @@ def apply_none_map(x, names, none_map=NONE_VALUES):
     return out
 
 
+def apply_dependent(x, names, rules=DEPENDENT_RULES):
+    """Fill blanks caused by skip logic, using the answers to earlier questions.
+
+    For each rule (target, conditions, fill), rows where the target is nan and
+    every precursor value is in its allowed list get target = fill. Fixed rules
+    from the codebook: nothing is learned from the data.
+
+    Args:
+        x: numpy array of shape (N, D), the features (missing values as nan).
+        names: list of D feature names, aligned with the columns of x.
+        rules: list of (target, {precursor: [values]}, fill).
+
+    Returns:
+        out: numpy array of shape (N, D), with skip-logic blanks filled.
+    """
+    out = x.copy()
+    for target, conditions, fill in rules:
+        if target not in names or any(p not in names for p in conditions):
+            continue
+        mask = np.isnan(out[:, names.index(target)])
+        for precursor, values in conditions.items():
+            mask &= np.isin(out[:, names.index(precursor)], values)
+        out[mask, names.index(target)] = fill
+    return out
+
+
 def drop_high_missing(x, names, max_missing=0.8):
     """Keep only columns whose missing fraction is <= max_missing.
 
