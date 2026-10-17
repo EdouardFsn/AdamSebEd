@@ -584,6 +584,8 @@ def preprocess_fit(x, names, use_categoricals=False, use_dependent=False):
     """
     x = apply_none_map(x, names)  # none-codes -> 0   (while values are raw)
     x = apply_missing_map(x, names)  # sentinels  -> nan
+    if use_dependent:
+        x = apply_dependent(x, names)    # fill skip-logic blanks before dropping
 
     x, names, keep_named = drop_named(x, names)  # drop metadata
     x, names, keep_missing = drop_high_missing(x, names)  # drop near-empty cols
@@ -604,6 +606,7 @@ def preprocess_fit(x, names, use_categoricals=False, use_dependent=False):
         "keep_named": keep_named,
         "keep_missing": keep_missing,
         "encoding": encoding,
+        "use_dependent": use_dependent,  # replayed by preprocess_apply
         "medians": medians,
         "mean": mean,
         "std": std,
@@ -612,7 +615,7 @@ def preprocess_fit(x, names, use_categoricals=False, use_dependent=False):
     return x, state
 
 
-def preprocess_apply(x, names, state, use_dependent=False):
+def preprocess_apply(x, names, state):
     """Replay the training recipe on new data (validation or test).
     Uses the stats in `state` — never recomputes anything from this data.
     Whether categoricals are one-hot encoded is also read from `state`, so
@@ -620,6 +623,9 @@ def preprocess_apply(x, names, state, use_dependent=False):
     """
     x = apply_none_map(x, names)
     x = apply_missing_map(x, names)
+
+    if state["use_dependent"]:
+        x = apply_dependent(x, names)
 
     x = x[:, state["keep_named"]]  # same column drops as train
     x = x[:, state["keep_missing"]]
