@@ -23,8 +23,11 @@ def make_submission(
     use_dependent=False,
 ):
     """Train on all data, predict on test, write an AIcrowd-ready CSV."""
-    xtr, state = preprocess_fit(x_train, names, use_categoricals=use_categoricals, use_dependent=use_dependent)
+    xtr, state = preprocess_fit(
+        x_train, names, use_categoricals=use_categoricals, use_dependent=use_dependent
+    )
     xte = preprocess_apply(x_test, names, state)
+    assert not np.isnan(xte).any(), "NaN left in test after preprocessing"
 
     w = train_baseline(xtr, y01)  # same trainer CV uses
 
@@ -44,9 +47,15 @@ def main():
     y01 = (y_train + 1) / 2  # logistic needs {0,1}, not {-1,1}
 
     USE_CAT = True
-    USE_DEP = False
+    USE_DEP = True  # fill skip-logic blanks (DEPENDENT_RULES)
     THRESHOLD = 0.2
-    MAKE_SUBMISSION = False  # NEW: set to True only to write submission.csv
+    MAKE_SUBMISSION = False  # set to True only to write submission.csv
+
+    # Column count after preprocessing (info only: CV re-does it on each fold)
+    x_check, _ = preprocess_fit(
+        x_train, feature_names, use_categoricals=USE_CAT, use_dependent=USE_DEP
+    )
+    print(f"cat={USE_CAT} dep={USE_DEP} | columns: {x_check.shape[1]} (incl. bias)")
 
     scores = cross_validate(
         x_train,
@@ -62,7 +71,7 @@ def main():
     mean, std = summarize_cv(scores)
     print(f"CV F1: {mean:.3f} ± {std:.3f} | folds: {np.round(scores, 3)}")
 
-    MAKE_SUBMISSION = False  # NEW: set to True only to write submission.csv
+    if MAKE_SUBMISSION:
         make_submission(
             x_train,
             y01,
