@@ -316,12 +316,35 @@ CATEGORICAL_FEATURES = [
     "GENHLTH"
 ]
 
-# Conditional ("skip-logic") features: a blank means the question was NOT asked because a precursor answer made it irrelevant
-DEPENDENT_FEATURES = {
-    # To fill later with features that are derived from other features, e.g.
-    # "SMOKDAY2": {"precursor": "SMOKE100", "precursor_value": 2, "fill": 3},
-    #   never smoked 100 cigs (SMOKE100 == 2) -> "not at all" (SMOKDAY2 = 3)
-}
+# Skip-logic: a blank means the question was NOT asked because of an earlier
+# answer. Each rule: (target, {precursor: [values]}, fill). The target is filled
+# only where it is blank AND every precursor condition holds.
+# Applied after apply_none_map / apply_missing_map, so "none" codes are already 0.
+# Checked on x_train: every row matching a condition has a blank target.
+DEPENDENT_RULES = [
+    # Non-drinkers (no drink-occasions) were not asked how much they drink
+    ("AVEDRNK2", {"DROCDY3_": [0]}, 0),
+    ("DRNK3GE5", {"DROCDY3_": [0]}, 0),
+    ("MAXDRNKS", {"DROCDY3_": [0]}, 0),
+    # Not hypertensive -> no blood-pressure medication (2 = No)
+    ("BPMEDS", {"BPHIGH4": [2, 3, 4]}, 2),
+    # No bad physical AND no bad mental health days -> 0 days limited
+    ("POORHLTH", {"PHYSHLTH": [0], "MENTHLTH": [0]}, 0),
+    # Never smoked 100 cigarettes -> smokes "not at all" (3)
+    ("SMOKDAY2", {"SMOKE100": [2]}, 3),
+    # Time since quitting: never smoked -> 8 (never), current smoker -> 0 (now)
+    ("LASTSMK2", {"SMOKE100": [2]}, 8),
+    ("LASTSMK2", {"SMOKDAY2": [1, 2]}, 0),
+    # Cholesterol never checked -> after "5 or more years ago" (4)
+    ("CHOLCHK", {"BLOODCHO": [2]}, 5),
+    # No arthritis -> not limited, no joint pain
+    ("LMTJOIN3", {"HAVARTH3": [2]}, 2),
+    ("ARTHDIS2", {"HAVARTH3": [2]}, 2),
+    ("ARTHSOCL", {"HAVARTH3": [2]}, 3),
+    ("JOINPAIN", {"HAVARTH3": [2]}, 0),
+    # Never had asthma -> does not have asthma now (2 = No)
+    ("ASTHNOW", {"ASTHMA3": [2]}, 2),
+]
 
 
 def drop_named(x, names, to_drop=DROP_FEATURES):
