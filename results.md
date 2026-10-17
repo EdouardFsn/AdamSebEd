@@ -12,3 +12,5 @@
 | 10-17 | + GENHLTH one-hot | 0.2 | 0.427 ± 0.004 | no effect (±0.001 per fold) |
 | 10-17 | − _STATE | 0.2 | 0.426 ± 0.003 | worse on 3/5 folds, never better → kept _STATE |
 | 10-17 | final: codebook lists + _SMOKER3, GENHLTH one-hot, _STATE kept | 0.2 | 0.427 ± 0.004 | folds 0.428 / 0.430 / 0.420 / 0.431 / 0.425 |
+| 10-18 | dependent features OFF (reference, same config as final) | 0.2 | 0.427 ± 0.004 | 5-fold CV, cols 243, folds 0.428 / 0.430 / 0.420 / 0.431 / 0.425 |
+| 10-18 | + dependent features (skip-logic fill, DEPENDENT_RULES) | 0.2 | 0.426 ± 0.004 | 5-fold CV, cols 244, folds 0.428 / 0.429 / 0.420 / 0.430 / 0.424, no effect (≤0.001 per fold): info already in precursor columns |
