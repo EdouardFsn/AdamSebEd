@@ -1,5 +1,7 @@
 import numpy as np
 
+from preprocessing import preprocess_fit, preprocess_apply
+
 
 def train_val_split(x, y, val_ratio=0.2, seed=0):
     """Shuffle and split rows into train / validation."""
@@ -37,3 +39,61 @@ def threshold_sweep(y_true, prob, thresholds):
         pred = (prob >= t).astype(float)
         results.append((t, f1_score(y_true, pred), float(np.mean(pred))))
     return results
+
+
+def k_fold_indices(n, k=5, seed=0):
+    """Split row indices 0..n-1 into k shuffled folds.
+
+    Returns a list of k arrays of indices; each is used once as validation.
+    """
+    rng = np.random.default_rng(seed)
+    idx = rng.permutation(n)
+    return np.array_split(idx, k)
+
+
+def cross_validate(
+    x,
+    y,
+    names,
+    train_model,
+    k=5,
+    threshold=0.2,
+    seed=0,
+    use_categoricals=False,
+    use_dependent=False,
+):
+    """Run k-fold CV. For each fold: preprocess (fit on train folds, apply to
+    val fold), train the model, score F1 on the val fold.
+
+    Args:
+        x, y: raw features and {0,1} labels (before any preprocessing).
+        names: feature names aligned with x's columns.
+        train_model: function (xtr, ytr) -> w, the trained weight vector.
+        threshold: decision threshold for F1.
+
+    Returns:
+        scores: numpy array of k F1 scores, one per fold.
+    """
+    folds = k_fold_indices(len(y), k=k, seed=seed)
+    scores = []
+    for i in range(k):
+        val_idx = folds[i]
+        tr_idx = np.concatenate([folds[j] for j in range(k) if j != i])
+
+        xtr, state = preprocess_fit(
+            x[tr_idx],
+            names,
+            use_categoricals=use_categoricals,
+            use_dependent=use_dependent,
+        )
+        xval = preprocess_apply(x[val_idx], names, state)
+
+        w = train_model(xtr, y[tr_idx])
+        pred = (predict_proba(xval, w) >= threshold).astype(float)
+        scores.append(f1_score(y[val_idx], pred))
+    return np.array(scores)
+
+
+def summarize_cv(scores):
+    """Mean and std of fold scores, as a (mean, std) tuple."""
+    return float(scores.mean()), float(scores.std())
