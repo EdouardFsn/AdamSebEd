@@ -1,7 +1,12 @@
 import numpy as np
 from helpers import load_csv_data, create_csv_submission
 from preprocessing import preprocess_fit, preprocess_apply
-from evaluation import cross_validate, summarize_cv, predict_logistic
+from evaluation import (
+    cross_validate,
+    cross_validate_auto_threshold,
+    summarize_cv,
+    predict_logistic,
+)
 from implementations import reg_logistic_regression
 
 
@@ -48,7 +53,8 @@ def main():
 
     USE_CAT = True
     USE_DEP = True  # fill skip-logic blanks (DEPENDENT_RULES)
-    THRESHOLD = 0.2
+
+    THRESHOLD = 0.2  # select after CV for aicrowd submission
     MAKE_SUBMISSION = False  # set to True only to write submission.csv
 
     # Column count after preprocessing (info only: CV re-does it on each fold)
@@ -57,19 +63,19 @@ def main():
     )
     print(f"cat={USE_CAT} dep={USE_DEP} | columns: {x_check.shape[1]} (incl. bias)")
 
-    scores = cross_validate(
+    scores, chosen = cross_validate_auto_threshold(
         x_train,
         y01,
         feature_names,
         train_baseline,
         k=5,
-        threshold=THRESHOLD,
         seed=0,
         use_categoricals=USE_CAT,
         use_dependent=USE_DEP,
     )
     mean, std = summarize_cv(scores)
-    print(f"CV F1: {mean:.3f} ± {std:.3f} | folds: {np.round(scores, 3)}")
+    print(f"CV F1 (auto-threshold): {mean:.3f} ± {std:.3f}")
+    print(f"thresholds chosen per fold: {np.round(chosen, 2)}")
 
     if MAKE_SUBMISSION:
         make_submission(
