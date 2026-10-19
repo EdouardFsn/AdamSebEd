@@ -6,15 +6,8 @@ from evaluation import (
     cross_validate_auto_threshold,
     summarize_cv,
     predict_logistic,
+    make_logistic_trainer,
 )
-from implementations import reg_logistic_regression
-
-
-def train_baseline(xtr, ytr):
-    """Train logistic regression (lambda=0) and return the weights."""
-    w0 = np.zeros(xtr.shape[1])
-    w, _ = reg_logistic_regression(ytr, xtr, 0.0, w0, max_iters=500, gamma=0.1)
-    return w
 
 
 def make_submission(
@@ -23,6 +16,7 @@ def make_submission(
     x_test,
     names,
     test_ids,
+    train_model,
     threshold=0.2,
     use_categoricals=True,
     use_dependent=False,
@@ -34,7 +28,7 @@ def make_submission(
     xte = preprocess_apply(x_test, names, state)
     assert not np.isnan(xte).any(), "NaN left in test after preprocessing"
 
-    w = train_baseline(xtr, y01)  # same trainer CV uses
+    w = train_model(xtr, y01)  # same trainer CV uses
 
     pred01 = predict_logistic(xte, w, threshold=threshold)  # {0,1}
     pred_pm1 = (2 * pred01 - 1).astype(int)  # back to {-1, 1}
@@ -57,6 +51,12 @@ def main():
     THRESHOLD = 0.2  # select after CV for aicrowd submission
     MAKE_SUBMISSION = False  # set to True only to write submission.csv
 
+    # Logistic regression training, chosen by the CV sweep in tune.py
+    LAMBDA = 0.0
+    GAMMA = 0.5
+    MAX_ITERS = 500
+    train_model = make_logistic_trainer(LAMBDA, GAMMA, MAX_ITERS)
+
     # Column count after preprocessing (info only: CV re-does it on each fold)
     x_check, _ = preprocess_fit(
         x_train, feature_names, use_categoricals=USE_CAT, use_dependent=USE_DEP
@@ -67,7 +67,7 @@ def main():
         x_train,
         y01,
         feature_names,
-        train_baseline,
+        train_model,
         k=5,
         seed=0,
         use_categoricals=USE_CAT,
@@ -84,6 +84,7 @@ def main():
             x_test,
             feature_names,
             test_ids,
+            train_model,
             threshold=THRESHOLD,
             use_categoricals=USE_CAT,
             use_dependent=USE_DEP,

@@ -1,6 +1,7 @@
 import numpy as np
 
 from preprocessing import preprocess_fit, preprocess_apply
+from implementations import reg_logistic_regression, compute_logistic_loss
 
 
 def train_val_split(x, y, val_ratio=0.2, seed=0):
@@ -147,3 +148,73 @@ def cross_validate_auto_threshold(
         scores.append(f1_score(y[val_idx], pred))
         chosen.append(t)
     return np.array(scores), np.array(chosen)
+
+
+def make_logistic_trainer(lambda_=0.0, gamma=0.1, max_iters=500):
+    """Build a train_model(xtr, ytr) -> w function, as used by cross_validate.
+
+    Args:
+        lambda_: float, L2 regularization strength of reg_logistic_regression.
+        gamma: float, gradient descent step size.
+        max_iters: int, number of gradient descent steps.
+
+    Returns:
+        train_model: function (xtr, ytr) -> w, trained from w = 0.
+    """
+
+    def train_model(xtr, ytr):
+        w0 = np.zeros(xtr.shape[1])
+        w, _ = reg_logistic_regression(ytr, xtr, lambda_, w0, max_iters, gamma)
+        return w
+
+    return train_model
+
+
+def hyperparameter_sweep(
+    x,
+    y,
+    names,
+    train_models,
+    thresholds,
+    k=5,
+    seed=0,
+    use_categoricals=False,
+    use_dependent=False,
+):
+    """Cross-validate several trainers on the same k folds.
+
+    Args:
+        x, y: raw features and {0,1} labels (before any preprocessing).
+        names: feature names aligned with x's columns.
+        train_models: list of functions (xtr, ytr) -> w, e.g. from
+            make_logistic_trainer.
+        thresholds: 1D array of decision thresholds to score.
+
+    Returns:
+        f1: numpy array (n_models, k, n_thresholds), val F1 per fold/threshold.
+        train_loss: numpy array (n_models, k), logistic loss on the train folds
+            (without penalty), to check that gradient descent converged.
+    """
+    folds = k_fold_indices(len(y), k=k, seed=seed)
+    f1 = np.zeros((len(train_models), k, len(thresholds)))
+    train_loss = np.zeros((len(train_models), k))
+    for i in range(k):
+        val_idx = folds[i]
+        tr_idx = np.concatenate([folds[j] for j in range(k) if j != i])
+
+        xtr, state = preprocess_fit(
+            x[tr_idx],
+            names,
+            use_categoricals=use_categoricals,
+            use_dependent=use_dependent,
+        )
+        xval = preprocess_apply(x[val_idx], names, state)
+
+        for m, train_model in enumerate(train_models):
+            w = train_model(xtr, y[tr_idx])
+            train_loss[m, i] = compute_logistic_loss(y[tr_idx], xtr, w)
+            prob = predict_proba(xval, w)
+            for t, threshold in enumerate(thresholds):
+                pred = (prob >= threshold).astype(float)
+                f1[m, i, t] = f1_score(y[val_idx], pred)
+    return f1, train_loss
