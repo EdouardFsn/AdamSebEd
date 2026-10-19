@@ -316,12 +316,35 @@ CATEGORICAL_FEATURES = [
     "GENHLTH"
 ]
 
-# Conditional ("skip-logic") features: a blank means the question was NOT asked because a precursor answer made it irrelevant
-DEPENDENT_FEATURES = {
-    # To fill later with features that are derived from other features, e.g.
-    # "SMOKDAY2": {"precursor": "SMOKE100", "precursor_value": 2, "fill": 3},
-    #   never smoked 100 cigs (SMOKE100 == 2) -> "not at all" (SMOKDAY2 = 3)
-}
+# Skip-logic: a blank means the question was NOT asked because of an earlier
+# answer. Each rule: (target, {precursor: [values]}, fill). The target is filled
+# only where it is blank AND every precursor condition holds.
+# Applied after apply_none_map / apply_missing_map, so "none" codes are already 0.
+# Checked on x_train: every row matching a condition has a blank target.
+DEPENDENT_RULES = [
+    # Non-drinkers (no drink-occasions) were not asked how much they drink
+    ("AVEDRNK2", {"DROCDY3_": [0]}, 0),
+    ("DRNK3GE5", {"DROCDY3_": [0]}, 0),
+    ("MAXDRNKS", {"DROCDY3_": [0]}, 0),
+    # Not hypertensive -> no blood-pressure medication (2 = No)
+    ("BPMEDS", {"BPHIGH4": [2, 3, 4]}, 2),
+    # No bad physical AND no bad mental health days -> 0 days limited
+    ("POORHLTH", {"PHYSHLTH": [0], "MENTHLTH": [0]}, 0),
+    # Never smoked 100 cigarettes -> smokes "not at all" (3)
+    ("SMOKDAY2", {"SMOKE100": [2]}, 3),
+    # Time since quitting: never smoked -> 8 (never), current smoker -> 0 (now)
+    ("LASTSMK2", {"SMOKE100": [2]}, 8),
+    ("LASTSMK2", {"SMOKDAY2": [1, 2]}, 0),
+    # Cholesterol never checked -> after "5 or more years ago" (4)
+    ("CHOLCHK", {"BLOODCHO": [2]}, 5),
+    # No arthritis -> not limited, no joint pain
+    ("LMTJOIN3", {"HAVARTH3": [2]}, 2),
+    ("ARTHDIS2", {"HAVARTH3": [2]}, 2),
+    ("ARTHSOCL", {"HAVARTH3": [2]}, 3),
+    ("JOINPAIN", {"HAVARTH3": [2]}, 0),
+    # Never had asthma -> does not have asthma now (2 = No)
+    ("ASTHNOW", {"ASTHMA3": [2]}, 2),
+]
 
 
 def drop_named(x, names, to_drop=DROP_FEATURES):
@@ -363,6 +386,32 @@ def apply_none_map(x, names, none_map=NONE_VALUES):
     for j, name in enumerate(names):
         if name in none_map:
             out[np.isin(out[:, j], none_map[name]), j] = 0
+    return out
+
+
+def apply_dependent(x, names, rules=DEPENDENT_RULES):
+    """Fill blanks caused by skip logic, using the answers to earlier questions.
+
+    For each rule (target, conditions, fill), rows where the target is nan and
+    every precursor value is in its allowed list get target = fill. Fixed rules
+    from the codebook: nothing is learned from the data.
+
+    Args:
+        x: numpy array of shape (N, D), the features (missing values as nan).
+        names: list of D feature names, aligned with the columns of x.
+        rules: list of (target, {precursor: [values]}, fill).
+
+    Returns:
+        out: numpy array of shape (N, D), with skip-logic blanks filled.
+    """
+    out = x.copy()
+    for target, conditions, fill in rules:
+        if target not in names or any(p not in names for p in conditions):
+            continue
+        mask = np.isnan(out[:, names.index(target)])
+        for precursor, values in conditions.items():
+            mask &= np.isin(out[:, names.index(precursor)], values)
+        out[mask, names.index(target)] = fill
     return out
 
 
@@ -535,6 +584,8 @@ def preprocess_fit(x, names, use_categoricals=False, use_dependent=False):
     """
     x = apply_none_map(x, names)  # none-codes -> 0   (while values are raw)
     x = apply_missing_map(x, names)  # sentinels  -> nan
+    if use_dependent:
+        x = apply_dependent(x, names)    # fill skip-logic blanks before dropping
 
     x, names, keep_named = drop_named(x, names)  # drop metadata
     x, names, keep_missing = drop_high_missing(x, names)  # drop near-empty cols
@@ -555,6 +606,7 @@ def preprocess_fit(x, names, use_categoricals=False, use_dependent=False):
         "keep_named": keep_named,
         "keep_missing": keep_missing,
         "encoding": encoding,
+        "use_dependent": use_dependent,  # replayed by preprocess_apply
         "medians": medians,
         "mean": mean,
         "std": std,
@@ -563,7 +615,7 @@ def preprocess_fit(x, names, use_categoricals=False, use_dependent=False):
     return x, state
 
 
-def preprocess_apply(x, names, state, use_dependent=False):
+def preprocess_apply(x, names, state):
     """Replay the training recipe on new data (validation or test).
     Uses the stats in `state` — never recomputes anything from this data.
     Whether categoricals are one-hot encoded is also read from `state`, so
@@ -571,6 +623,9 @@ def preprocess_apply(x, names, state, use_dependent=False):
     """
     x = apply_none_map(x, names)
     x = apply_missing_map(x, names)
+
+    if state["use_dependent"]:
+        x = apply_dependent(x, names)
 
     x = x[:, state["keep_named"]]  # same column drops as train
     x = x[:, state["keep_missing"]]
