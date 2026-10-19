@@ -97,3 +97,53 @@ def cross_validate(
 def summarize_cv(scores):
     """Mean and std of fold scores, as a (mean, std) tuple."""
     return float(scores.mean()), float(scores.std())
+
+
+def best_threshold(y_true, prob, thresholds):
+    """Return the threshold (from `thresholds`) with the highest F1 on these predictions."""
+    scored = [(t, f1_score(y_true, (prob >= t).astype(float))) for t in thresholds]
+    return max(scored, key=lambda tf: tf[1])[0]
+
+
+def cross_validate_auto_threshold(
+    x,
+    y,
+    names,
+    train_model,
+    k=5,
+    seed=0,
+    use_categoricals=False,
+    use_dependent=False,
+    thresholds=np.arange(0.1, 0.4, 0.01),
+):
+    """k-fold cross validation that selects the threshold on each fold's training data and measures F1 on the held-out fold with that threshold.
+
+    Honest: the held-out fold never influences its own threshold.
+
+    Returns:
+        scores: k F1 scores (one per fold, at each fold's chosen threshold).
+        chosen: the k thresholds chosen, so we can see how stable they are.
+    """
+    folds = k_fold_indices(len(y), k=k, seed=seed)
+    scores, chosen = [], []
+    for i in range(k):
+        val_idx = folds[i]
+        tr_idx = np.concatenate([folds[j] for j in range(k) if j != i])
+
+        xtr, state = preprocess_fit(
+            x[tr_idx],
+            names,
+            use_categoricals=use_categoricals,
+            use_dependent=use_dependent,
+        )
+        xval = preprocess_apply(x[val_idx], names, state)
+
+        w = train_model(xtr, y[tr_idx])
+
+        # choose threshold on the training predictions, never on the held-out fold
+        t = best_threshold(y[tr_idx], predict_proba(xtr, w), thresholds)
+        pred = (predict_proba(xval, w) >= t).astype(float)
+
+        scores.append(f1_score(y[val_idx], pred))
+        chosen.append(t)
+    return np.array(scores), np.array(chosen)
