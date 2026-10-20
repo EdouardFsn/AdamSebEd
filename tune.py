@@ -8,7 +8,13 @@ one line per setting, and gives results in results.md
 import numpy as np
 
 from helpers import load_csv_data
-from evaluation import hyperparameter_sweep, make_logistic_trainer
+from evaluation import (
+    cross_validate_auto_threshold,
+    hyperparameter_sweep,
+    make_logistic_trainer,
+    make_weighted_trainer,
+    summarize_cv,
+)
 
 # same preprocessing switches as run.py
 USE_CAT = True
@@ -58,6 +64,23 @@ def main():
             f"F1@{REFERENCE_THRESHOLD}: {f1[m, :, ref].mean():.4f} ± {f1[m, :, ref].std():.4f} | "
             f"best t={THRESHOLDS[best]:.2f}: {mean_by_t[best]:.4f} ± {f1[m, :, best].std():.4f} | "
             f"folds@{REFERENCE_THRESHOLD}: {np.round(f1[m, :, ref], 3)}"
+        )
+
+    for pw in [0.25, 0.5, 1.0, 2.0, 5.0, 10.0]:
+        trainer = make_weighted_trainer(pos_weight=pw, gamma=0.5, max_iters=500)
+        scores, chosen = cross_validate_auto_threshold(
+            x_train,
+            y01,
+            feature_names,
+            trainer,
+            k=5,
+            seed=0,
+            use_categoricals=True,
+            use_dependent=True,
+        )
+        mean, std = summarize_cv(scores)
+        print(
+            f"pos_weight={pw:5.1f} | F1 {mean:.3f} ± {std:.3f} | t {np.round(chosen,2)}"
         )
 
 
