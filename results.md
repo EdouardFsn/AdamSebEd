@@ -23,3 +23,4 @@
 | 10-19 | λ=1e-1, γ=0.5 | 0.2 | 0.201 ± 0.001 | t=0.2 no longer fits (probabilities pushed up); 0.414 at its best t=0.39 |
 | 10-19 | chosen: λ=0, γ=0.5, 500 it (run.py) | 0.2 | 0.428 ± 0.003 | L2 regularization does not help: no overfitting with 262k rows / 244 cols |
 | 10-19 | chosen config (λ=0, γ=0.5) with auto-threshold CV (run.py) | chosen t 0.21 / 0.21 / 0.21 / 0.20 / 0.20 | 0.428 ± 0.003 | vs 0.426 ± 0.005 with γ=0.1 (row above sweep): gain holds under honest threshold selection |
+| 20-19 | add class weighting: no effect | t [0.21 0.21 0.21 0.2  0.2 ] | F1 0.428 ± 0.003 | pos_weight and threshold compensate each other but maximum is at around 0.428 |

@@ -2,6 +2,7 @@ import numpy as np
 
 from preprocessing import preprocess_fit, preprocess_apply
 from implementations import reg_logistic_regression, compute_logistic_loss
+from implementations import sigmoid
 
 
 def train_val_split(x, y, val_ratio=0.2, seed=0):
@@ -218,3 +219,27 @@ def hyperparameter_sweep(
                 pred = (prob >= threshold).astype(float)
                 f1[m, i, t] = f1_score(y[val_idx], pred)
     return f1, train_loss
+
+
+def compute_weighted_logistic_gradient(y, tx, w, sample_weights):
+    """Logistic gradient with a per-sample weight on each error term."""
+    pred = sigmoid(tx @ w)
+    return tx.T @ (sample_weights * (pred - y)) / len(y)
+
+
+def make_weighted_trainer(pos_weight=1.0, gamma=0.5, max_iters=500):
+    """Build a train_model(xtr, ytr) -> w that up-weights the positive class.
+
+    pos_weight = 1.0 recovers ordinary logistic regression. A value near the
+    imbalance ratio (~10) makes a missed positive cost ~10x a missed negative.
+    """
+
+    def train_model(xtr, ytr):
+        w = np.zeros(xtr.shape[1])
+        # weight: pos_weight for y=1 rows, 1.0 for y=0 rows
+        s = np.where(ytr == 1, pos_weight, 1.0)
+        for _ in range(max_iters):
+            w -= gamma * compute_weighted_logistic_gradient(ytr, xtr, w, s)
+        return w
+
+    return train_model
