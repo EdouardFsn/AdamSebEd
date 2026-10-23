@@ -53,7 +53,7 @@ def main():
     MAX_MISSING = 0.999  # drop columns more empty than this
     USE_MI = True # add a 0/1 "was missing" column for columns >5% empty
 
-    THRESHOLD = 0.2  # select after CV for aicrowd submission
+    THRESHOLD = 0.21  # select after CV for aicrowd submission
     MAKE_SUBMISSION = False  # set to True only to write submission.csv
 
     # Logistic regression training, chosen by the CV sweep in tune.py

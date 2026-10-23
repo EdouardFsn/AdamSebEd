@@ -19,6 +19,8 @@ from evaluation import (
 # same preprocessing switches as run.py
 USE_CAT = True
 USE_DEP = True
+SWEEP_MISSING = True
+MISSING_GRID = [0.5, 0.8, 0.9, 0.95, 0.999]
 
 # (label, lambda_, gamma, max_iters). The first line is the previous setting
 # of run.py
@@ -41,6 +43,20 @@ def main():
     with open("data/x_train.csv") as f:
         feature_names = f.readline().strip().split(",")[1:]
     y01 = (y_train + 1) / 2
+
+    if SWEEP_MISSING:
+        trainer = make_logistic_trainer(0.0, 0.5, 500)
+        for mm in MISSING_GRID:
+           for mi in [False, True]:
+               scores, chosen = cross_validate_auto_threshold(
+                   x_train, y01, feature_names, trainer, k=5, seed=0,
+                   use_categoricals=USE_CAT, use_dependent=USE_DEP,
+                   max_missing=mm, use_missing_indicators=mi,
+               )
+               mean, std = summarize_cv(scores)
+               print(f"max_missing={mm} indicators={mi} | F1 {mean:.4f} ± {std:.4f} "
+                     f"| folds {np.round(scores, 3)} | t {np.round(chosen, 2)}", flush=True)
+        return
 
     trainers = [make_logistic_trainer(lam, g, it) for _, lam, g, it in CONFIGS]
     f1, train_loss = hyperparameter_sweep(
@@ -77,6 +93,7 @@ def main():
             seed=0,
             use_categoricals=True,
             use_dependent=True,
+            thresholds=np.arange(0.02, 0.95, 0.01),
         )
         mean, std = summarize_cv(scores)
         print(
