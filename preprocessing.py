@@ -568,13 +568,14 @@ def add_bias(x):
 # The two following functions are used in run.py, they call all the above helpers in the correct order to clean and standardize the training data, and then replay the same transformations on validation/test data.
 
 
-def preprocess_fit(x, names, use_categoricals=False, use_dependent=False):
+def preprocess_fit(x, names, use_categoricals=False, use_dependent=False, max_missing =0.8):
     """Clean training data, and RETURN the stats learned, so the exact same
     transform can be replayed on validation/test.
 
     Args:
         use_categoricals: if True, one-hot encode CATEGORICAL_FEATURES instead
             of feeding their raw integer codes to the model.
+        max_missing: drop columns with a larger fraction of missing values.
 
     Returns:
         x_clean: the processed training matrix (with bias column).
@@ -588,7 +589,7 @@ def preprocess_fit(x, names, use_categoricals=False, use_dependent=False):
         x = apply_dependent(x, names)    # fill skip-logic blanks before dropping
 
     x, names, keep_named = drop_named(x, names)  # drop metadata
-    x, names, keep_missing = drop_high_missing(x, names)  # drop near-empty cols
+    x, names, keep_missing = drop_high_missing(x, names, max_missing)  # drop near-empty cols
 
     # before imputing, so that missing values get their own indicator column
     encoding = fit_onehot(x, names) if use_categoricals else []
