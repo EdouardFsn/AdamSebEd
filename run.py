@@ -20,10 +20,12 @@ def make_submission(
     threshold=0.2,
     use_categoricals=True,
     use_dependent=False,
+    max_missing=0.8, 
+    use_missing_indicators=False,
 ):
     """Train on all data, predict on test, write an AIcrowd-ready CSV."""
     xtr, state = preprocess_fit(
-        x_train, names, use_categoricals=use_categoricals, use_dependent=use_dependent
+        x_train, names, use_categoricals=use_categoricals, use_dependent=use_dependent, max_missing=max_missing, use_missing_indicators=use_missing_indicators
     )
     xte = preprocess_apply(x_test, names, state)
     assert not np.isnan(xte).any(), "NaN left in test after preprocessing"
@@ -48,7 +50,10 @@ def main():
     USE_CAT = True
     USE_DEP = True  # fill skip-logic blanks (DEPENDENT_RULES)
 
-    THRESHOLD = 0.2  # select after CV for aicrowd submission
+    MAX_MISSING = 0.999  # drop columns more empty than this
+    USE_MI = True # add a 0/1 "was missing" column for columns >5% empty
+
+    THRESHOLD = 0.21  # select after CV for aicrowd submission
     MAKE_SUBMISSION = False  # set to True only to write submission.csv
 
     # Logistic regression training, chosen by the CV sweep in tune.py
@@ -59,7 +64,7 @@ def main():
 
     # Column count after preprocessing (info only: CV re-does it on each fold)
     x_check, _ = preprocess_fit(
-        x_train, feature_names, use_categoricals=USE_CAT, use_dependent=USE_DEP
+        x_train, feature_names, use_categoricals=USE_CAT, use_dependent=USE_DEP, max_missing=MAX_MISSING, use_missing_indicators=USE_MI,
     )
     print(f"cat={USE_CAT} dep={USE_DEP} | columns: {x_check.shape[1]} (incl. bias)")
 
@@ -72,6 +77,8 @@ def main():
         seed=0,
         use_categoricals=USE_CAT,
         use_dependent=USE_DEP,
+        max_missing=MAX_MISSING,
+        use_missing_indicators=USE_MI,
     )
     mean, std = summarize_cv(scores)
     print(f"CV F1 (auto-threshold): {mean:.3f} ± {std:.3f}")
@@ -88,6 +95,8 @@ def main():
             threshold=THRESHOLD,
             use_categoricals=USE_CAT,
             use_dependent=USE_DEP,
+            max_missing=MAX_MISSING,
+            use_missing_indicators=USE_MI,
         )
 
 

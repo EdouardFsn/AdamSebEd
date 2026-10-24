@@ -63,6 +63,8 @@ def cross_validate(
     seed=0,
     use_categoricals=False,
     use_dependent=False,
+    max_missing=0.8,
+    use_missing_indicators=False,   
 ):
     """Run k-fold CV. For each fold: preprocess (fit on train folds, apply to
     val fold), train the model, score F1 on the val fold.
@@ -87,6 +89,8 @@ def cross_validate(
             names,
             use_categoricals=use_categoricals,
             use_dependent=use_dependent,
+            max_missing=max_missing,
+            use_missing_indicators=use_missing_indicators,
         )
         xval = preprocess_apply(x[val_idx], names, state)
 
@@ -116,6 +120,8 @@ def cross_validate_auto_threshold(
     seed=0,
     use_categoricals=False,
     use_dependent=False,
+    max_missing=0.8,
+    use_missing_indicators=False,
     thresholds=np.arange(0.1, 0.4, 0.01),
 ):
     """k-fold cross validation that selects the threshold on each fold's training data and measures F1 on the held-out fold with that threshold.
@@ -137,6 +143,8 @@ def cross_validate_auto_threshold(
             names,
             use_categoricals=use_categoricals,
             use_dependent=use_dependent,
+            max_missing=max_missing,
+            use_missing_indicators=use_missing_indicators,
         )
         xval = preprocess_apply(x[val_idx], names, state)
 
@@ -181,6 +189,8 @@ def hyperparameter_sweep(
     seed=0,
     use_categoricals=False,
     use_dependent=False,
+    max_missing=0.8,
+    use_missing_indicators=False,
 ):
     """Cross-validate several trainers on the same k folds.
 
@@ -208,6 +218,8 @@ def hyperparameter_sweep(
             names,
             use_categoricals=use_categoricals,
             use_dependent=use_dependent,
+            max_missing=max_missing,
+            use_missing_indicators=use_missing_indicators,
         )
         xval = preprocess_apply(x[val_idx], names, state)
 

@@ -522,6 +522,16 @@ def apply_impute(x, medians):
     out[rows, cols] = np.take(medians, cols)
     return out
 
+def fit_missing_indicators(x, min_frac=0.05):
+    """Indices of the columns with more than min_frac missing values (learned on train)."""
+    return np.where(np.isnan(x).mean(axis=0) > min_frac)[0]
+
+
+def apply_missing_indicators(x, names, cols):
+    """Append a 0/1 'was missing' column for each column index in cols."""
+    ind = np.isnan(x[:, cols]).astype(float)
+    return np.hstack([x, ind]), names + [names[j] + "=nan" for j in cols]
+
 
 def fit_standardize(x):
     """Compute the per-column mean and std (std of 0 is replaced by 1).
@@ -568,13 +578,14 @@ def add_bias(x):
 # The two following functions are used in run.py, they call all the above helpers in the correct order to clean and standardize the training data, and then replay the same transformations on validation/test data.
 
 
-def preprocess_fit(x, names, use_categoricals=False, use_dependent=False):
+def preprocess_fit(x, names, use_categoricals=False, use_dependent=False, max_missing =0.8, use_missing_indicators=False):
     """Clean training data, and RETURN the stats learned, so the exact same
     transform can be replayed on validation/test.
 
     Args:
         use_categoricals: if True, one-hot encode CATEGORICAL_FEATURES instead
             of feeding their raw integer codes to the model.
+        max_missing: drop columns with a larger fraction of missing values.
 
     Returns:
         x_clean: the processed training matrix (with bias column).
@@ -588,11 +599,15 @@ def preprocess_fit(x, names, use_categoricals=False, use_dependent=False):
         x = apply_dependent(x, names)    # fill skip-logic blanks before dropping
 
     x, names, keep_named = drop_named(x, names)  # drop metadata
-    x, names, keep_missing = drop_high_missing(x, names)  # drop near-empty cols
+    x, names, keep_missing = drop_high_missing(x, names, max_missing)  # drop near-empty cols
 
     # before imputing, so that missing values get their own indicator column
     encoding = fit_onehot(x, names) if use_categoricals else []
     x, names = apply_onehot(x, names, encoding)
+
+    # before imputing, so we still know which values were missing
+    mi_cols = fit_missing_indicators(x) if use_missing_indicators else []
+    x, names = apply_missing_indicators(x, names, mi_cols)
 
     medians = fit_impute(x)  # learn medians on train
     x = apply_impute(x, medians)
@@ -606,6 +621,7 @@ def preprocess_fit(x, names, use_categoricals=False, use_dependent=False):
         "keep_named": keep_named,
         "keep_missing": keep_missing,
         "encoding": encoding,
+        "mi_cols": mi_cols,
         "use_dependent": use_dependent,  # replayed by preprocess_apply
         "medians": medians,
         "mean": mean,
@@ -632,7 +648,8 @@ def preprocess_apply(x, names, state):
     names = [n for n, k in zip(names, state["keep_named"]) if k]
     names = [n for n, k in zip(names, state["keep_missing"]) if k]
 
-    x, _ = apply_onehot(x, names, state["encoding"])  # train levels
+    x, names = apply_onehot(x, names, state["encoding"])  # train levels
+    x, names = apply_missing_indicators(x, names, state["mi_cols"])  # train columns
 
     x = apply_impute(x, state["medians"])  # train medians
     x = apply_standardize(x, state["mean"], state["std"])  # train scale
