@@ -29,7 +29,7 @@
 python run.py
 ```
 
-It prints the 5-fold cross-validation F1 of the final model, then trains it on the whole training set and writes `submission.csv`, the exact file of our best AIcrowd submission (**F1 = X.XXX** on the leaderboard). Runtime: about **N minutes** on a laptop.
+It prints the 5-fold cross-validation F1 of the final model, then trains it on the whole training set and writes `submission.csv`, the exact file of our best AIcrowd submission (**F1 = 4.449** on the leaderboard). Runtime: about **2-3 minute** on a laptop.
 
 > The submission is only written when `MAKE_SUBMISSION = True` in `run.py`.
 
