@@ -4,18 +4,60 @@
 
 **Team:** Edouard Fousson · Adam Cohen · Sebastien Nyiri
 
-**Deadline:** Thursday, 29 October 2026 · 16:00 — submit at [mlcourse.epfl.ch](http://mlcourse.epfl.ch)
-
 ---
 
 ## Contents
 
-1. [First-time setup](#first-time-setup)
-2. [Running the tests](#running-the-tests)
-3. [Working together](#working-together)
-4. [Repo structure](#repo-structure)
-5. [Required functions](#required-functions)
-6. [Project constraints](#project-constraints)
+1. [Reproducing our best submission](#reproducing-our-best-submission)
+2. [Pipeline](#pipeline)
+3. [Model and validation](#model-and-validation)
+4. [First-time setup](#first-time-setup)
+5. [Running the tests](#running-the-tests)
+6. [Working together](#working-together)
+7. [Repo structure](#repo-structure)
+8. [Required functions](#required-functions)
+9. [Project constraints](#project-constraints)
+
+---
+
+## Reproducing our best submission
+
+1. Put `x_train.csv`, `y_train.csv` and `x_test.csv` in `data/` (see [setup step 4](#4-get-the-data)).
+2. Run:
+
+```bash
+python run.py
+```
+
+It prints the 5-fold cross-validation F1 of the final model, then trains it on the whole training set and writes `submission.csv`, the exact file of our best AIcrowd submission (**F1 = X.XXX** on the leaderboard). Runtime: about **N minutes** on a laptop.
+
+> The submission is only written when `MAKE_SUBMISSION = True` in `run.py`.
+
+---
+
+## Pipeline
+
+All steps are learned on the training data only (`preprocess_fit`) and replayed unchanged on validation or test data (`preprocess_apply`), so no statistic ever leaks from held-out rows. Feature names and answer codes follow the [BRFSS 2015 codebook](https://www.cdc.gov/brfss/annual_data/annual_2015.html). Everything lives in `preprocessing.py`.
+
+1. **Code mapping.** Answers meaning "none" (88, 888, 98) become 0 (`NONE_VALUES`). Answers meaning "don't know / refused" (7, 9, 77, 99, …) become NaN (`MISSING_VALUES`). Some calculated variables are rescaled in the course data, so their codes are adjusted (e.g. 99000 → 99).
+2. **Skip-logic fill.** When a question was not asked because of an earlier answer, the blank is filled from that answer, e.g. non-drinkers get 0 drinks (`DEPENDENT_RULES`, 14 rules, each checked on `x_train`).
+3. **Column drops.** Survey metadata, raw answers that pack a unit and a value into one number (BRFSS provides a decoded version, which we keep), and columns duplicated elsewhere (`DROP_FEATURES`). Then columns with more than 99.9% missing values.
+4. **One-hot encoding** of 14 nominal or order-breaking variables (`CATEGORICAL_FEATURES`), with the most frequent level as reference.
+5. **Missing indicators.** A 0/1 "was missing" column for every column with more than 5% missing values, so that the model can tell a blank from an imputed value.
+6. **Median imputation**, **standardization**, and a **bias column**.
+
+The final design matrix has about **514 columns** (including the bias).
+
+---
+
+## Model and validation
+
+- **Model:** logistic regression (`reg_logistic_regression`), λ = 0, γ = 0.5, 500 gradient steps (converged). Labels are mapped from {-1, 1} to {0, 1}.
+- **Validation:** 5-fold cross-validation (seed 0). The preprocessing is re-fitted inside each fold.
+- **Decision threshold:** chosen on the training folds' predictions to maximize F1 (≈ 0.21), then applied to the held-out fold.
+- **Final CV F1:** **0.439 ± 0.004**.
+
+Every experiment, including the ones that did not help, is logged in `results.md` (ablation study). `tune.py` reruns the hyperparameter sweeps (missing-value threshold, λ and γ, class weighting), and `implementations_comparaison.py` produces the method-comparison figure of the report.
 
 ---
 
@@ -119,14 +161,9 @@ Target a single function with `-k`:
 pytest --github_link C:\Users\YOU\Documents\AdamSebEd . -k least_squares
 ```
 
-**Two failures are expected and harmless during development:**
+**One failure is expected and harmless:** `test_github_link_format`, because we pass a local path instead of a URL.
 
-| Failure | Why |
-|---|---|
-| value tests failing with `NotImplementedError` | that function isn't written yet |
-| `test_github_link_format` | we pass a local path instead of a URL |
-
-The TAs may update the tests, so pull the course repo now and then (we'll also get `helpers.py` from there later):
+The TAs may update the tests, so pull the course repo now and then:
 
 ```bash
 cd C:\Users\YOU\ML_course
@@ -199,11 +236,16 @@ Shared code lives in **`.py` files**. Notebooks are for personal exploration and
 
 ```
 AdamSebEd/
-├── README.md              this file
-├── implementations.py     the six required functions
-├── run.py                 reproduces our best AIcrowd submission
-├── helpers.py             data loading and submission writing
-├── data/                  not versioned — see setup step 4
+├── README.md                        this file
+├── implementations.py               the six required functions
+├── run.py                           reproduces our best AIcrowd submission
+├── preprocessing.py                 feature lists and the fit / apply cleaning pipeline
+├── evaluation.py                    F1, cross-validation, trainers
+├── tune.py                          hyperparameter sweeps (results in results.md)
+├── implementations_comparaison.py   method comparison figure for the report
+├── results.md                       log of every experiment (ablation study)
+├── helpers.py                       data loading and submission writing (from the course)
+├── data/                            not versioned — see setup step 4
 └── .gitignore
 ```
 
@@ -213,7 +255,7 @@ AdamSebEd/
 
 ## Required functions
 
-All six go in `implementations.py`, with these exact signatures:
+All six are in `implementations.py`, with these exact signatures:
 
 | Function | Signature |
 |---|---|
@@ -246,4 +288,3 @@ All six go in `implementations.py`, with these exact signatures:
 - **Not allowed:** pandas, scikit-learn, PyTorch, TensorFlow, any external library or dataset.
 - The repo must stay **public**.
 - AIcrowd allows **5 submissions per day**. Always validate locally too — the leaderboard score is not a substitute for cross-validation.
-- Project 1 does **not** count toward the final grade; it's preparation for **Project 2 (30%)**.
