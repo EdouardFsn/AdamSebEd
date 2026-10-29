@@ -1,8 +1,21 @@
-"""Feature filtering and preprocessing for the MICHD classification project."""
+"""Feature cleaning and preprocessing for the MICHD classification project.
+ 
+The pipeline is split into a fit step (preprocess_fit, learns everything on the
+training data) and an apply step (preprocess_apply, replays it on validation or
+test data), so no statistic is ever computed on held-out rows.
+ 
+All feature names and answer codes follow the BRFSS 2015 codebook. Some
+calculated variables are rescaled in the course data (see MISSING_VALUES).
+"""
 
 import numpy as np
 
-# Columns that carry no health signal: survey metadata, dates, IDs, phone bookkeeping.
+# ---------------------------------------------------------------------------
+# Feature lists
+# ---------------------------------------------------------------------------
+
+# Columns with no health signal, or with information that is invalid or
+# duplicated elsewhere. Removed by drop_named.
 METADATA_FEATURES = [
     # Survey administration / telephone screening
     "IDATE",
@@ -21,13 +34,11 @@ METADATA_FEATURES = [
     "CADULT",
     "PVTRESD2",
     "CSTATE",
-    # Questionnaire / language administration
     "QSTVER",
     "QSTLANG",
-    # Free-text administrative fields
     "EXACTOT1",
     "EXACTOT2",
-    # Survey weighting / sampling machinery
+    # Survey weighting and sampling
     "_STSTR",
     "_STRWT",
     "_RAWRAKE",
@@ -35,13 +46,12 @@ METADATA_FEATURES = [
     "_DUALCOR",
     "_LLCPWT",
     "_CLLCPWT",
-    # Purely administrative / derived sampling variables
     "MSCODE",
-    # Interview month / year: when the survey was taken, not who was surveyed
+    # Interview date: when the survey was taken, not who was surveyed
     "FMONTH",
     "IMONTH",
     "IYEAR",
-    # Household / phone bookkeeping (landline-only, ~40-60% blank by design)
+    # Household and phone bookkeeping (landline only, 40-60% blank)
     "NUMADULT",
     "NUMMEN",
     "NUMWOMEN",
@@ -49,18 +59,18 @@ METADATA_FEATURES = [
     "LANDLINE",
     "_DUALUSE",
     "CCLGHOUS",
-    # Child-survey variables (about a child in the household, not the respondent)
+    # About a child in the household, not the respondent
     "_CHISPNC",
     "_CRACE1",
     "_CPRACE",
-    # Raw dates encoded as MMYYYY: a linear model would read them as magnitudes
+    # Dates coded as MMYYYY, meaningless as magnitudes
     "FLSHTMY2",
     "HIVTSTD3",
-    # Place of vaccination: nominal, 57% blank
+    # Nominal codes with no order: vaccination place, activity types
     "IMFVPLAC",
     "EXRACT11",
     "EXRACT21",
-    # Data-quality flags: whether an answer was missing, not a health answer
+    # Data-quality flags (was an answer missing), not health answers
     "_MISFRTN",
     "_MISVEGN",
     "_FRTRESP",
@@ -68,10 +78,10 @@ METADATA_FEATURES = [
     "_FRUITEX",
     "_VEGETEX",
     "PAMISS1_",
-    # Only asked to 65+ (64% blank); FLUSHOT6 / PNEUVAC3 cover everyone
+    # Only asked to people aged 65+, covered by FLUSHOT6 / PNEUVAC3
     "_FLSHOT6",
     "_PNEUMO2",
-    # Race / ethnicity: same information as _RACE (one-hot encoded)
+    # Same information as _RACE
     "_PRACE1",
     "_MRACE1",
     "_RACEGR3", 
@@ -80,43 +90,35 @@ METADATA_FEATURES = [
     "_HISPANC",
 ]
 
-# Raw answers that pack a unit and a value into one number, e.g. ALCDAY5:
-# 1xx = days per week, 2xx = days in past 30, 888 = none. A linear model would
-# read 230 (30 days a month) as more than 107 (7 days a week), which is wrong.
-# BRFSS already provides a decoded version of each one, so we drop the raw
-# column. Checked on x_train: the decoded column is present for 100% of valid
-# raw answers and blank where the raw answer is don't know / refused.
+# Raw answers that pack a unit and a value into one number (e.g. ALCDAY5:
+# 1xx = days per week, 2xx = days per month), so their size is meaningless.
+# BRFSS provides a decoded version of each (shown after "->"), which we keep.
 PACKED_FEATURES = [
-    # Alcohol -> DROCDY3_ (drink-days per 100 days), _DRNKWEK (drinks per week)
+    # Alcohol -> DROCDY3_, _DRNKWEK
     "ALCDAY5",
-    # Fruit / vegetables (1xx per day, 2xx per week, 3xx per month,
-    # 555 = never) -> FTJUDA1_, FRUTDA1_, BEANDAY_, GRENDAY_, ORNGDAY_,
-    # VEGEDA1_ (times per day) and the sums _FRUTSUM, _VEGESUM
+    # Fruit / vegetables -> FTJUDA1_, FRUTDA1_, BEANDAY_, GRENDAY_, ORNGDAY_,
+    # VEGEDA1_, _FRUTSUM, _VEGESUM
     "FRUITJU1",
     "FRUIT1",
     "FVBEANS",
     "FVGREEN",
     "FVORANG",
     "VEGETAB1",
-    # Exercise (1xx per week, 2xx per month; durations as H:MM, so 130 = 1h30)
-    # -> PAFREQ1_, PAFREQ2_ (times per week), PADUR1_, PADUR2_ (minutes)
+    # Exercise -> PAFREQ1_, PAFREQ2_, PADUR1_, PADUR2_
     "EXEROFT1",
     "EXEROFT2",
     "EXERHMM1",
     "EXERHMM2",
-    # Strength training (1xx per week, 2xx per month, 888 = never) -> STRFREQ_
+    # Strength training -> STRFREQ_
     "STRENGTH",
-    # Weight mixes pounds and kg (9xxx), height mixes ft-in (507 = 5'7") and
-    # cm (9xxx), both with 7777 / 9999 codes -> WTKG3 (kg), HTM4 (m), _BMI5
+    # Weight and height (mixed units) -> WTKG3, HTM4, _BMI5
     "WEIGHT2",
     "HEIGHT3",
-    # Diabetes self-care frequencies (same 1xx/2xx/3xx scheme) have no decoded
-    # version, but only diabetics were asked (93% blank) and DIABETE3 already
-    # carries that information.
+    # Diabetes self-care: no decoded version, 93% blank, covered by DIABETE3
     "BLDSUGAR",
     "FEETCHK2",
-    # 9 mixes "aged 65+, not asked" (36% of rows) with "don't know";
-    # rebuilt from HLTHPLN1 + age anyway
+    # Not packed: code 9 mixes "aged 65+" with "don't know", and the variable
+    # is rebuilt from HLTHPLN1 and age anyway
     "_HCVU651",
 ]
 
@@ -182,6 +184,7 @@ MISSING_VALUES = {
     "ARTHDIS2": [7, 9],
     "ARTHSOCL": [7, 9],
     "CIMEMLOS": [7, 9],
+    # 8 = never drives or rides in a car
     "SEATBELT": [7, 8, 9],
     # Two-digit numeric quantities: 77 = don't know, 99 = refused
     "PHYSHLTH": [77, 99],
@@ -204,16 +207,15 @@ MISSING_VALUES = {
     "ADFAIL": [77, 99],
     "ADTHINK": [77, 99],
     "ADMOVE": [77, 99],
+    # Other two-digit codes (97 / 98 = don't know, 99 = refused)
     "SCNTLWK1": [97, 99],
+    # 98 = never heard of the test
     "CHKHEMO3": [77, 98, 99],
     "ASERVIST": [98],
     "ASDRVIST": [98],
     "ASRCHKUP": [98, 99],
-    # Age at diabetes diagnosis: 98 = don't know, 99 = refused
     "DIABAGE2": [98, 99],
-    # (The 777 / 999 codes of the packed frequency variables are not listed:
-    # those columns are dropped, see PACKED_FEATURES.)
-    # Calculated-variable "unknown" codes (moved here from SPECIAL_VALUES)
+    # Calculated variables: "unknown" code of each
     "DROCDY3_": [900],
     "_DRNKWEK": [99900],
     "_AGEG5YR": [14],
@@ -257,9 +259,8 @@ MISSING_VALUES = {
     "_PRACE1": [77, 99],
     "_MRACE1": [77, 99],
     "DRNKANY5": [7, 9],
-    # Physical-activity calculated quantities. The course data divided these
-    # by 1000 (PAFREQ*, STRFREQ_) or 100 (MAXVO2_, FC60_) compared with the
-    # BRFSS codebook, so the codebook's 99000 / 99900 appear here as 99 / 999.
+    # Rescaled in the course data (divided by 1000 or 100), so the codebook's
+    # 99000 / 99900 "unknown" codes appear as 99 / 999
     "PAFREQ1_": [99],
     "PAFREQ2_": [99],
     "STRFREQ_": [99],
@@ -268,7 +269,7 @@ MISSING_VALUES = {
     "ASACTLIM": [777, 999],
 }
 
-# Codes that encode "none / zero" -> become 0
+# Codes meaning "none", replaced by 0 (88 / 888 = none, 98 = zero hours)
 NONE_VALUES = {
     # PHQ-style "number of days" items: 88 = none / 0 days
     "ADPLEASR": [88],
@@ -279,16 +280,13 @@ NONE_VALUES = {
     "ADFAIL": [88],
     "ADTHINK": [88],
     "ADMOVE": [88],
-    # Days of bad physical / mental health in the past 30 days: 88 = none
     "PHYSHLTH": [88],
     "MENTHLTH": [88],
     "POORHLTH": [88],
-    # Alcohol: no binge-drinking occasion in past 30 days
+    # Counts (binge-drinking occasions, children, visits, tests, days)
     "DRNK3GE5": [88],
     "CHILDREN": [88],
-    # Doctor visits for diabetes in past 12 months: 88 = none
     "DOCTDIAB": [88],
-    # Diabetes and asthma visit/test counts
     "CHKHEMO3": [88],
     "ASERVIST": [88],
     "ASDRVIST": [88],
@@ -298,29 +296,28 @@ NONE_VALUES = {
     "SCNTLWK1": [98],
 }
 
-# Nominal or order-breaking categoricals -> one-hot encoded
+# Nominal or order-breaking categoricals, one-hot encoded by fit_onehot
 CATEGORICAL_FEATURES = [
-    "MARITAL",   # married / divorced / widowed / ... : no order
-    "EMPLOY1",   # employed / student / retired / unable to work : no order
-    "_RACE",     # race / ethnicity groups : no order
-    "_STATE",    # US state FIPS code : no order (53 values)
-    "RENTHOM1",  # own / rent / other : no order
-    "PERSDOC2",  # 1 = one doctor, 2 = more than one, 3 = none : "none" is not "more"
-    "BPHIGH4",   # 1 yes, 2 yes only in pregnancy, 3 no, 4 borderline : order broken
-    "DIABETE3",  # 1 yes, 2 pregnancy only, 3 no, 4 pre-diabetes : order broken
-    "CHECKUP1",  # 1-4 = years since checkup, 8 = never : order broken
-    "_PAREC1",   # met both / aerobic only / strength only / neither : 2 vs 3 not ordered
-    "SXORIENT",  # straight / gay / bisexual / other : no order
-    "WHRTST10",  # place of HIV test : no order
-    "_SMOKER3",
-    "GENHLTH"
+    "MARITAL",  # nominal: marital status
+    "EMPLOY1",  # nominal: employment status
+    "_RACE",  # nominal: race / ethnicity group
+    "_STATE",  # nominal: US state code
+    "RENTHOM1",  # nominal: own / rent / other
+    "PERSDOC2",  # order broken: one doctor / several / none
+    "BPHIGH4",  # order broken: yes / pregnancy only / no / borderline
+    "DIABETE3",  # order broken: yes / pregnancy only / no / pre-diabetes
+    "CHECKUP1",  # order broken: years since checkup, 8 = never
+    "_PAREC1",  # order broken: aerobic only vs strength only
+    "SXORIENT",  # nominal: sexual orientation
+    "WHRTST10",  # nominal: place of HIV test
+    "_SMOKER3",  # non-linear effect: smoking status
+    "GENHLTH",  # non-linear effect: self-rated health
 ]
 
-# Skip-logic: a blank means the question was NOT asked because of an earlier
-# answer. Each rule: (target, {precursor: [values]}, fill). The target is filled
-# only where it is blank AND every precursor condition holds.
-# Applied after apply_none_map / apply_missing_map, so "none" codes are already 0.
-# Checked on x_train: every row matching a condition has a blank target.
+# Skip logic: a blank means the question was not asked because of an earlier
+# answer. Each rule (target, {precursor: [values]}, fill) fills the target
+# where it is blank and every precursor condition holds. Applied after the
+# code mappings above, so "none" codes are already 0.
 DEPENDENT_RULES = [
     # Non-drinkers (no drink-occasions) were not asked how much they drink
     ("AVEDRNK2", {"DROCDY3_": [0]}, 0),
@@ -347,8 +344,24 @@ DEPENDENT_RULES = [
 ]
 
 
+# ---------------------------------------------------------------------------
+# Cleaning steps: code mappings and column drops
+# ---------------------------------------------------------------------------
+
+
 def drop_named(x, names, to_drop=DROP_FEATURES):
-    """Drop columns whose name is in `to_drop`. Returns reduced x, names, and the mask."""
+    """Drop the columns whose name is in to_drop.
+ 
+    Args:
+        x: numpy array of shape (N, D), the features.
+        names: list of D feature names, aligned with the columns of x.
+        to_drop: list of feature names to remove.
+ 
+    Returns:
+        x_kept: numpy array of shape (N, D_kept), the kept columns.
+        names_kept: list of D_kept kept feature names.
+        keep: boolean numpy array of shape (D,), the kept-column mask.
+    """
     keep = np.array([n not in to_drop for n in names])
     return x[:, keep], [n for n, k in zip(names, keep) if k], keep
 
@@ -391,16 +404,15 @@ def apply_none_map(x, names, none_map=NONE_VALUES):
 
 def apply_dependent(x, names, rules=DEPENDENT_RULES):
     """Fill blanks caused by skip logic, using the answers to earlier questions.
-
-    For each rule (target, conditions, fill), rows where the target is nan and
-    every precursor value is in its allowed list get target = fill. Fixed rules
-    from the codebook: nothing is learned from the data.
-
+ 
+    For each rule (target, conditions, fill), the rows where the target is NaN
+    and every precursor value is in its allowed list get target = fill.
+ 
     Args:
-        x: numpy array of shape (N, D), the features (missing values as nan).
+        x: numpy array of shape (N, D), the features (missing values as NaN).
         names: list of D feature names, aligned with the columns of x.
         rules: list of (target, {precursor: [values]}, fill).
-
+ 
     Returns:
         out: numpy array of shape (N, D), with skip-logic blanks filled.
     """
@@ -416,13 +428,13 @@ def apply_dependent(x, names, rules=DEPENDENT_RULES):
 
 
 def drop_high_missing(x, names, max_missing=0.8):
-    """Keep only columns whose missing fraction is <= max_missing.
-
+    """Keep only the columns whose fraction of NaN is at most max_missing.
+ 
     Args:
-        x: numpy array of shape (N, D), the features.
+        x: numpy array of shape (N, D), the features (missing values as NaN).
         names: list of D feature names, aligned with the columns of x.
         max_missing: float, maximum allowed fraction of missing values.
-
+ 
     Returns:
         x_kept: numpy array of shape (N, D_kept), the kept columns.
         names_kept: list of D_kept kept feature names.
@@ -431,6 +443,11 @@ def drop_high_missing(x, names, max_missing=0.8):
     missing_frac = np.isnan(x).mean(axis=0)
     keep = missing_frac <= max_missing
     return x[:, keep], [n for n, k in zip(names, keep) if k], keep
+
+
+# ---------------------------------------------------------------------------
+# Fit / apply pairs: fit learns on train, apply replays on any data
+# ---------------------------------------------------------------------------
 
 
 def fit_onehot(x, names, categorical=CATEGORICAL_FEATURES):
@@ -523,25 +540,43 @@ def apply_impute(x, medians):
     return out
 
 def fit_missing_indicators(x, min_frac=0.05):
-    """Indices of the columns with more than min_frac missing values (learned on train)."""
+    """Find the columns that deserve a "was missing" indicator.
+ 
+    Args:
+        x: numpy array of shape (N, D), the features (missing values as NaN).
+        min_frac: float, minimum fraction of NaN for a column to be selected.
+ 
+    Returns:
+        cols: numpy array of the indices of the selected columns.
+    """
     return np.where(np.isnan(x).mean(axis=0) > min_frac)[0]
 
 
 def apply_missing_indicators(x, names, cols):
-    """Append a 0/1 'was missing' column for each column index in cols."""
+    """Append a 0/1 "was missing" column for each selected column.
+ 
+    Args:
+        x: numpy array of shape (N, D), the features (missing values as NaN).
+        names: list of D feature names, aligned with the columns of x.
+        cols: indices of the columns to flag, from fit_missing_indicators.
+ 
+    Returns:
+        out: numpy array of shape (N, D + len(cols)), x followed by the flags.
+        names_out: list of feature names, flags are named like "BPMEDS=nan".
+    """
     ind = np.isnan(x[:, cols]).astype(float)
     return np.hstack([x, ind]), names + [names[j] + "=nan" for j in cols]
 
 
 def fit_standardize(x):
-    """Compute the per-column mean and std (std of 0 is replaced by 1).
-
+    """Compute the mean and standard deviation of each column.
+ 
     Args:
         x: numpy array of shape (N, D), the features.
-
+ 
     Returns:
         mean: numpy array of shape (D,), the per-column means.
-        std: numpy array of shape (D,), the per-column stds (zeros -> 1).
+        std: numpy array of shape (D,), the per-column stds (0 replaced by 1).
     """
     mean = x.mean(axis=0)
     std = x.std(axis=0)
@@ -550,15 +585,15 @@ def fit_standardize(x):
 
 
 def apply_standardize(x, mean, std):
-    """Standardize using the provided per-column mean and std.
-
+    """Standardize each column with the given mean and standard deviation.
+ 
     Args:
         x: numpy array of shape (N, D), the features.
-        mean: numpy array of shape (D,), the per-column means.
-        std: numpy array of shape (D,), the per-column stds.
-
+        mean: numpy array of shape (D,), from fit_standardize.
+        std: numpy array of shape (D,), from fit_standardize.
+ 
     Returns:
-        numpy array of shape (N, D), standardized.
+        out: numpy array of shape (N, D), the standardized features.
     """
     return (x - mean) / std
 
@@ -575,31 +610,39 @@ def add_bias(x):
     return np.c_[np.ones(x.shape[0]), x]
 
 
-# The two following functions are used in run.py, they call all the above helpers in the correct order to clean and standardize the training data, and then replay the same transformations on validation/test data.
+# ---------------------------------------------------------------------------
+# Full pipeline: fit on train, replay on validation / test
+# ---------------------------------------------------------------------------
 
 
 def preprocess_fit(x, names, use_categoricals=False, use_dependent=False, max_missing =0.8, use_missing_indicators=False):
-    """Clean training data, and RETURN the stats learned, so the exact same
-    transform can be replayed on validation/test.
-
+    """Clean the training data and return everything learned on it.
+ 
+    Steps, in order: code mappings, skip-logic fill, column drops, one-hot
+    encoding, missing indicators, median imputation, standardization, bias.
+ 
     Args:
-        use_categoricals: if True, one-hot encode CATEGORICAL_FEATURES instead
-            of feeding their raw integer codes to the model.
-        max_missing: drop columns with a larger fraction of missing values.
-
+        x: numpy array of shape (N, D), the raw training features.
+        names: list of D feature names, aligned with the columns of x.
+        use_categoricals: bool, one-hot encode CATEGORICAL_FEATURES.
+        use_dependent: bool, fill skip-logic blanks with DEPENDENT_RULES.
+        max_missing: float, drop columns with a larger fraction of NaN.
+        use_missing_indicators: bool, add a "was missing" column for columns
+            with more than 5% NaN.
+ 
     Returns:
-        x_clean: the processed training matrix (with bias column).
-        state: dict of everything learned on train (which columns to keep,
-               one-hot encoding, medians, mean, std, final feature names)
-               — the "recipe" to replay elsewhere.
+        x_clean: numpy array of shape (N, D_out), the processed training data.
+        state: dict of everything learned on train (kept columns, encoding,
+            indicator columns, medians, mean, std, final feature names), to be
+            replayed by preprocess_apply.
     """
-    x = apply_none_map(x, names)  # none-codes -> 0   (while values are raw)
-    x = apply_missing_map(x, names)  # sentinels  -> nan
+    x = apply_none_map(x, names)  
+    x = apply_missing_map(x, names)  
     if use_dependent:
-        x = apply_dependent(x, names)    # fill skip-logic blanks before dropping
+        x = apply_dependent(x, names)    # before dropping, so filled columns count
 
-    x, names, keep_named = drop_named(x, names)  # drop metadata
-    x, names, keep_missing = drop_high_missing(x, names, max_missing)  # drop near-empty cols
+    x, names, keep_named = drop_named(x, names)  
+    x, names, keep_missing = drop_high_missing(x, names, max_missing)  
 
     # before imputing, so that missing values get their own indicator column
     encoding = fit_onehot(x, names) if use_categoricals else []
@@ -609,10 +652,10 @@ def preprocess_fit(x, names, use_categoricals=False, use_dependent=False, max_mi
     mi_cols = fit_missing_indicators(x) if use_missing_indicators else []
     x, names = apply_missing_indicators(x, names, mi_cols)
 
-    medians = fit_impute(x)  # learn medians on train
+    medians = fit_impute(x)  
     x = apply_impute(x, medians)
 
-    mean, std = fit_standardize(x)  # learn scale on train
+    mean, std = fit_standardize(x)  
     x = apply_standardize(x, mean, std)
 
     x = add_bias(x)
@@ -622,7 +665,7 @@ def preprocess_fit(x, names, use_categoricals=False, use_dependent=False, max_mi
         "keep_missing": keep_missing,
         "encoding": encoding,
         "mi_cols": mi_cols,
-        "use_dependent": use_dependent,  # replayed by preprocess_apply
+        "use_dependent": use_dependent,  
         "medians": medians,
         "mean": mean,
         "std": std,
@@ -633,9 +676,17 @@ def preprocess_fit(x, names, use_categoricals=False, use_dependent=False, max_mi
 
 def preprocess_apply(x, names, state):
     """Replay the training recipe on new data (validation or test).
-    Uses the stats in `state` — never recomputes anything from this data.
-    Whether categoricals are one-hot encoded is also read from `state`, so
-    validation/test are always encoded the same way as train.
+ 
+    Uses only what is stored in state and never recomputes anything from this
+    data, so the output has exactly the same columns as the training matrix.
+ 
+    Args:
+        x: numpy array of shape (N, D), the raw features.
+        names: list of D feature names, aligned with the columns of x.
+        state: dict returned by preprocess_fit.
+ 
+    Returns:
+        x_clean: numpy array of shape (N, D_out), the processed data.
     """
     x = apply_none_map(x, names)
     x = apply_missing_map(x, names)
