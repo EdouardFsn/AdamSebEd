@@ -75,7 +75,7 @@ def main():
     MAX_MISSING = 0.999  # drop columns more empty than this
     USE_MI = True  # add a "was missing" column for columns more than 5% empty
     THRESHOLD = 0.21  # decision threshold of the submission
-    MAKE_SUBMISSION = False  # True to write submission.csv
+    MAKE_SUBMISSION = True  # True to write submission.csv
  
     LAMBDA = 0.0
     GAMMA = 0.5
