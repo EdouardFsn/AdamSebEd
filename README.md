@@ -11,27 +11,24 @@
 1. [Reproducing our best submission](#reproducing-our-best-submission)
 2. [Pipeline](#pipeline)
 3. [Model and validation](#model-and-validation)
-4. [First-time setup](#first-time-setup)
-5. [Running the tests](#running-the-tests)
-6. [Working together](#working-together)
-7. [Repo structure](#repo-structure)
-8. [Required functions](#required-functions)
-9. [Project constraints](#project-constraints)
+4. [Setup](#setup)
+5. [Repo structure](#repo-structure)
+6. [Required functions](#required-functions)
+7. [Running the tests](#running-the-tests)
+8. [Project constraints](#project-constraints)
 
 ---
 
 ## Reproducing our best submission
 
-1. Put `x_train.csv`, `y_train.csv` and `x_test.csv` in `data/` (see [setup step 4](#4-get-the-data)).
+1. Put `x_train.csv`, `y_train.csv` and `x_test.csv` in `data/` (see [Setup](#setup)).
 2. Run:
 
 ```bash
 python run.py
 ```
 
-It prints the 5-fold cross-validation F1 of the final model, then trains it on the whole training set and writes `submission.csv`, the exact file of our best AIcrowd submission (**F1 = 4.449** on the leaderboard). Runtime: about **2-3 minute** on a laptop.
-
-> The submission is only written when `MAKE_SUBMISSION = True` in `run.py`.
+It prints the 5-fold cross-validation F1 of the final model, then trains it on the whole training set and writes `submission.csv`, the exact file of our best AIcrowd submission (**F1 = 0.449** on the leaderboard). Runtime: about **2–3 minutes** on a laptop.
 
 ---
 
@@ -54,181 +51,37 @@ The final design matrix has about **514 columns** (including the bias).
 
 - **Model:** logistic regression (`reg_logistic_regression`), λ = 0, γ = 0.5, 500 gradient steps (converged). Labels are mapped from {-1, 1} to {0, 1}.
 - **Validation:** 5-fold cross-validation (seed 0). The preprocessing is re-fitted inside each fold.
-- **Decision threshold:** chosen on the training folds' predictions to maximize F1 (≈ 0.21), then applied to the held-out fold.
+- **Decision threshold:** chosen on the training folds' predictions to maximize F1, then applied to the held-out fold. It is stable across folds (0.20–0.21), and the submission uses t = 0.21.
 - **Final CV F1:** **0.439 ± 0.004**.
 
-Every experiment, including the ones that did not help, is logged in `results.md` (ablation study). `tune.py` reruns the hyperparameter sweeps (missing-value threshold, λ and γ, class weighting), and `implementations_comparaison.py` produces the method-comparison figure of the report.
+Every experiment, including the ones that did not help, is logged in `results.md` (ablation study, Table I of the report); the rows are obtained by switching the settings at the top of `run.py`. `tune.py` reruns the hyperparameter sweeps (set `SWEEP_MISSING = False` for the λ / γ and class-weighting sweeps), and `implementations_comparaison.py` produces the method-comparison figure of the report (`methods_comparison.pdf`).
 
 ---
 
-## First-time setup
+## Setup
 
-Everything in this section is a **one-time** setup per machine. Ping the group chat if anything fails.
+### Get the data
 
-> Paths below use Windows (`C:\Users\...`). On macOS/Linux the commands are the same; paths look like `/Users/you/...`.
+The `data/` folder is **not versioned**: the CSVs are too large for git.
 
-### 1. Install the tools
-
-Check what you already have:
-
-```bash
-git --version
-conda --version
-code --version
-```
-
-Install anything that's missing, then re-check.
-
-### 2. Configure git (once per machine)
-
-```bash
-git config --global user.name "Your Name"
-git config --global user.email "your.github.email@example.com"
-```
-
-Use the email tied to your GitHub account — otherwise your commits won't be linked to your profile.
-
-### 3. Clone both repos
-
-Clone them **side by side, never one inside the other**:
-
-```bash
-cd C:\Users\YOU\Documents
-git clone https://github.com/epfml/ML_course.git
-git clone https://github.com/EdouardFsn/AdamSebEd.git
-```
-
-The course repo (`ML_course`) is needed for the grading tests. We never edit it — we only pull updates from it.
-
-### 4. Get the data
-
-The `data/` folder is **not versioned** — the CSVs are too large for git, so everyone downloads their own copy.
-
-1. Create an AIcrowd account with your **@epfl.ch** address.
+1. Create an AIcrowd account with an **@epfl.ch** address.
 2. Join the challenge: <https://www.aicrowd.com/challenges/epfl-machine-learning-project-1>
 3. Download `x_train.csv`, `y_train.csv` and `x_test.csv`.
 4. Create a `data/` folder at the repo root and put the three files in it.
 
-> **Do not rename them** — `load_csv_data` expects these exact names.
-> 
-> **Sanity check:** `git status` should show no `.csv` files.
+> **Do not rename them**: `load_csv_data` expects these exact names.
 
-### 5. Create the grading environment
+### Environment
+
+Only Python and NumPy are needed (matplotlib for the report figure). We used the course's grading environment:
 
 ```bash
-cd C:\Users\YOU\ML_course\projects\project1\grading_tests
+cd ML_course/projects/project1/grading_tests
 conda env create --file=environment.yml --name=project1-grading
 conda activate project1-grading
 ```
 
-Then point VS Code at it: open the **AdamSebEd** folder → `Ctrl+Shift+P` → **Python: Select Interpreter** → pick `project1-grading`.
-
-> This environment ships scikit-learn and pandas **for running the tests only**. We are **not** allowed to use them in our code.
-
-### 6. Enable auto-formatting
-
-We all use [**black**](https://github.com/psf/black) so git never flags conflicts on lines that differ only by spacing. This only pays off if **all three of us** do it.
-
-1. Install the **Black Formatter** extension (`ms-python.black-formatter`) from the Extensions panel.
-2. `Ctrl+Shift+P` → **Preferences: Open User Settings (JSON)**, then add (mind the comma on the line above):
-
-```jsonc
-"[python]": {
-    "editor.defaultFormatter": "ms-python.black-formatter",
-    "editor.formatOnSave": true
-}
-```
-
-**Check it works:** open a `.py` file, type `x=1+2`, save — it should snap to `x = 1 + 2`.
-
-> **If nothing happens on save:** the formatter's language server needs Python ≥ 3.10, but `project1-grading` runs 3.9. Fix by giving black its own interpreter — create one (`conda create --name fmt python=3.12`) and add `"black-formatter.interpreter": ["C:\\Users\\YOU\\anaconda3\\envs\\fmt\\python.exe"]` to your settings. This is separate from the interpreter your project uses.
-
----
-
-## Running the tests
-
-```bash
-cd C:\Users\YOU\ML_course\projects\project1\grading_tests
-conda activate project1-grading
-pytest --github_link C:\Users\YOU\Documents\AdamSebEd .
-```
-
-> The trailing **`.`** matters — it tells pytest to load this folder's `conftest.py`, which defines the custom `--github_link` flag. Drop the dot and you get `unrecognized arguments: --github_link`.
-
-Target a single function with `-k`:
-
-```bash
-pytest --github_link C:\Users\YOU\Documents\AdamSebEd . -k least_squares
-```
-
-**One failure is expected and harmless:** `test_github_link_format`, because we pass a local path instead of a URL.
-
-The TAs may update the tests, so pull the course repo now and then:
-
-```bash
-cd C:\Users\YOU\ML_course
-git pull
-```
-
----
-
-## Working together
-
-A few conventions so the three of us never step on each other. None of this is bureaucracy — it's what keeps `main` always working and our history readable.
-
-### The golden rule
-
-**`main` is protected by convention: all work happens on a branch, and `main` only changes through a reviewed pull request.**
-
-### Daily workflow
-
-**Start of session** — always branch off an up-to-date `main`:
-
-```bash
-git checkout main
-git pull
-git checkout -b feature/my-thing
-```
-
-**During work** — commit in small, meaningful steps:
-
-```bash
-git add implementations.py
-git commit -m "implement ridge_regression"
-```
-
-**End of session** — push your branch and open a PR:
-
-```bash
-git push -u origin feature/my-thing
-```
-
-Commit messages: **English, imperative mood, short** (`implement ridge_regression`, not `added ridge`).
-
-### Branch naming
-
-| Prefix | For | Example |
-|---|---|---|
-| `feature/` | new functionality | `feature/ridge-regression` |
-| `fix/` | bug fixes | `fix/sigmoid-overflow` |
-
-Lowercase, hyphen-separated, short.
-
-### Pull requests
-
-- **Open a PR for every change** — however small.
-- **Write a description detailed enough** that a teammate understands *what* changed and *why* without reading every line. Mention the function(s) touched, any helpers you added (so nobody duplicates them), and anything a reviewer should watch for.
-- **Assign the most relevant reviewer**, then **drop a message in the WhatsApp group** so they actually see it.
-
-### Reviews & merging
-
-- **No merge before someone else has approved.** Self-merging defeats the point of review.
-- The reviewer checks the code reads well **and** the grading tests pass, then approves.
-- Once approved, merge — and delete the branch to keep the branch list clean.
-
-### Notebooks
-
-Shared code lives in **`.py` files**. Notebooks are for personal exploration and each of us keeps their own (`explo_adam.ipynb`, etc.) — `.ipynb` files are JSON under the hood and merge terribly, so we never share them on `main`.
+> This environment ships scikit-learn and pandas **for running the tests only**. Our code does not use them.
 
 ---
 
@@ -243,13 +96,12 @@ AdamSebEd/
 ├── evaluation.py                    F1, cross-validation, trainers
 ├── tune.py                          hyperparameter sweeps (results in results.md)
 ├── implementations_comparaison.py   method comparison figure for the report
+├── methods_comparison.pdf           figure for the report
 ├── results.md                       log of every experiment (ablation study)
 ├── helpers.py                       data loading and submission writing (from the course)
-├── data/                            not versioned — see setup step 4
+├── data/                            not versioned, see Setup
 └── .gitignore
 ```
-
-> `README.md`, `implementations.py` and `run.py` must stay at the **root** — the grading tests check for them there.
 
 ---
 
@@ -266,25 +118,24 @@ All six are in `implementations.py`, with these exact signatures:
 | `logistic_regression` | `(y, tx, initial_w, max_iters, gamma)` |
 | `reg_logistic_regression` | `(y, tx, lambda_, initial_w, max_iters, gamma)` |
 
-**Conventions enforced by the tests:**
+Each returns `(w, loss)`: the last weight vector, of shape `(D,)`, and its loss as a scalar. The MSE carries a factor 0.5, the regularized methods return the loss **without** the penalty term, SGD uses mini-batches of size 1, and the logistic methods expect labels in {0, 1}.
 
-- return `(w, loss)` — only the **last** `w`, not the whole history
-- `loss` must be a **scalar** (`loss.ndim == 0`), not a size-1 array
-- `w` must have shape `(D,)`, never `(D, 1)`
-- MSE carries a factor **0.5**
-- ridge and regularized logistic return the loss **without** the penalty term
-- SGD uses **mini-batch size 1**
-- logistic regression expects **y ∈ {0, 1}**, not {−1, 1}
-- `least_squares` may use anything from `numpy.linalg` **except** `lstsq`
-- `max_iters=0` must work and return `initial_w` with its loss
-- every function needs a **docstring**
-- the word `TODO` must not appear in any `.py` file
+---
+
+## Running the tests
+
+```bash
+cd ML_course/projects/project1/grading_tests
+conda activate project1-grading
+pytest --github_link path/to/AdamSebEd .
+```
+
+> The trailing **`.`** matters: it tells pytest to load this folder's `conftest.py`, which defines the `--github_link` flag.
 
 ---
 
 ## Project constraints
 
-- **Allowed:** Python standard library, NumPy. matplotlib/seaborn **for plots only**.
-- **Not allowed:** pandas, scikit-learn, PyTorch, TensorFlow, any external library or dataset.
-- The repo must stay **public**.
-- AIcrowd allows **5 submissions per day**. Always validate locally too — the leaderboard score is not a substitute for cross-validation.
+- **Allowed:** Python standard library, NumPy. matplotlib **for plots only**.
+- **Not used:** pandas, scikit-learn, PyTorch, TensorFlow, any external library or dataset.
+- Model choices were made with local cross-validation, not with the leaderboard score.
